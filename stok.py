@@ -16,166 +16,185 @@ def verileri_yukle():
         "tamamlanan_siparisler": [],
         "kullanicilar": {"admin": "1234"}
     }
-    
     if os.path.exists(VERI_DOSYASI):
         try:
             with open(VERI_DOSYASI, "r", encoding="utf-8") as f:
                 mevcut = json.load(f)
-                # FORMAT KONTROLÜ VE TAMİRİ (AttributeError Önleyici)
                 for anahtar, tip in varsayilan.items():
                     if anahtar not in mevcut or type(mevcut[anahtar]) != type(tip):
                         mevcut[anahtar] = tip
                 return mevcut
-        except:
-            return varsayilan
+        except: return varsayilan
     return varsayilan
 
 def verileri_kaydet(veri):
     with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
-# Uygulama başladığında veriyi "Süper Güvenli" yükle
 if 'data' not in st.session_state:
     st.session_state.data = verileri_yukle()
-
-# Çalışma anında her ihtimale karşı tip kontrolü
-if not isinstance(st.session_state.data.get("siparisler"), list):
-    st.session_state.data["siparisler"] = []
-if not isinstance(st.session_state.data.get("tamamlanan_siparisler"), list):
-    st.session_state.data["tamamlanan_siparisler"] = []
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
-st.set_page_config(page_title="Pro ERP Yönetim", layout="wide")
+st.set_page_config(page_title="Pro ERP - Sipariş Yönetimi", layout="wide")
 
 # --- GİRİŞ EKRANI ---
 if not st.session_state.authenticated:
-    st.title("🔐 Fabrika Yönetim Sistemi")
+    st.title("🔐 Pro ERP Yönetim")
     with st.form("login_panel"):
         u = st.text_input("Kullanıcı Adı")
         p = st.text_input("Şifre", type="password")
         if st.form_submit_button("Giriş Yap"):
             if u.lower() == "admin" and p == "1234":
                 st.session_state.authenticated = True
-                st.session_state.current_user = u
                 st.rerun()
-            else:
-                st.error("Hatalı Kullanıcı veya Şifre!")
+            else: st.error("Hatalı Giriş!")
     st.stop()
 
 # --- ANA MENÜ ---
-st.sidebar.title(f"👤 {st.session_state.current_user}")
-if st.sidebar.button("Güvenli Çıkış"):
-    st.session_state.authenticated = False
-    st.rerun()
+menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ YÖNETİMİ", "⚙️ ÜRÜN AĞACI (BOM)", "📦 DEPO & STOK", "🛠️ ÜRETİM GİRİŞİ", "📊 ARŞİV"])
 
-menu = st.sidebar.radio("Bölüm Seçiniz:", ["🛒 Siparişler", "⚙️ Ürün Ağacı", "📦 Depo", "🛠️ Üretim", "📊 Arşiv"])
-
-# --- BÖLÜM 1: SİPARİŞLER ---
-if menu == "🛒 Siparişler":
-    st.header("🛒 Aktif Müşteri Siparişleri")
+# --- BÖLÜM 1: SİPARİŞ YÖNETİMİ ---
+if menu == "🛒 SİPARİŞ YÖNETİMİ":
+    st.header("🛒 SİPARİŞ YÖNETİM MERKEZİ")
     
-    # Mevcut siparişleri listele
+    # Mevcut Siparişleri Tablo Olarak Göster (BÜYÜK HARF BAŞLIKLAR)
     if st.session_state.data["siparisler"]:
+        df_sip = pd.DataFrame(st.session_state.data["siparisler"])
+        # Sütunları Türkçeleştir ve Büyük Harf Yap
+        df_sip = df_sip.rename(columns={
+            "kod": "SİPARİŞ KODU",
+            "musteri": "MÜŞTERİ ADI",
+            "urun": "ÜRÜN",
+            "miktar": "HEDEF MİKTAR",
+            "uretilen": "ÜRETİLEN MİKTAR",
+            "termin": "TERMİN TARİHİ"
+        })
+        st.subheader("📋 AKTİF SİPARİŞ LİSTESİ")
+        st.dataframe(df_sip, use_container_width=True)
+
+        # DÜZENLEME VE KAPATMA ALANI
+        st.markdown("---")
+        st.subheader("🛠️ SİPARİŞ DÜZENLE VEYA KAPAT")
         for idx, s in enumerate(st.session_state.data["siparisler"]):
-            c1, c2, c3 = st.columns([3, 1, 1])
-            c1.write(f"**{s['musteri']}** - {s['urun']} (Hedef: {s['miktar']})")
-            c2.info(f"Üretilen: {s['uretilen']}")
-            if c3.button("Kapat/Arşivle", key=f"kapat_{idx}"):
-                s["bitis_tarihi"] = str(datetime.date.today())
-                st.session_state.data["tamamlanan_siparisler"].append(s)
-                st.session_state.data["siparisler"].pop(idx)
-                verileri_kaydet(st.session_state.data)
-                st.rerun()
-    
-    with st.expander("➕ Yeni Sipariş Ekle"):
-        with st.form("y_sip"):
-            m = st.text_input("Müşteri")
-            u_l = list(st.session_state.data.get("urun_agaclari", {}).keys())
-            sec_u = st.selectbox("Ürün", u_l if u_l else ["Önce Reçete Tanımlayın"])
+            with st.expander(f"📝 DÜZENLE: {s.get('kod', 'KODSUZ')} - {s['musteri']}"):
+                c1, c2, c3 = st.columns(3)
+                y_mik = c1.number_input("YENİ MİKTAR", value=int(s['miktar']), key=f"mik_{idx}")
+                y_term = c2.date_input("YENİ TERMİN", value=datetime.datetime.strptime(s['termin'], "%Y-%m-%d"), key=f"term_{idx}")
+                y_kod = c3.text_input("SİPARİŞ KODU REVİZE", value=s.get('kod', ''), key=f"kod_{idx}")
+                
+                b1, b2, b3 = st.columns([1,1,2])
+                if b1.button("✅ GÜNCELLE", key=f"btn_g_{idx}"):
+                    s['miktar'] = y_mik
+                    s['termin'] = str(y_term)
+                    s['kod'] = y_kod
+                    verileri_kaydet(st.session_state.data)
+                    st.success("GÜNCELLENDİ!")
+                    st.rerun()
+                
+                if b2.button("🏁 SİPARİŞİ KAPAT", key=f"btn_k_{idx}"):
+                    s["bitis_tarihi"] = str(datetime.date.today())
+                    st.session_state.data["tamamlanan_siparisler"].append(s)
+                    st.session_state.data["siparisler"].pop(idx)
+                    verileri_kaydet(st.session_state.data)
+                    st.rerun()
+
+    # YENİ SİPARİŞ EKLEME
+    with st.expander("➕ YENİ SİPARİŞ OLUŞTUR"):
+        with st.form("yeni_sip"):
             c1, c2 = st.columns(2)
-            mik = c1.number_input("Miktar", min_value=1)
-            term = c2.date_input("Termin")
-            if st.form_submit_button("Kaydet"):
+            y_s_kod = c1.text_input("SİPARİŞ KODU (Örn: SK-202)")
+            y_m_adi = c2.text_input("MÜŞTERİ ADI")
+            
+            u_list = list(st.session_state.data.get("urun_agaclari", {}).keys())
+            y_urun = st.selectbox("ÜRÜN SEÇİN", u_list if u_list else ["Önce Reçete Tanımlayın"])
+            
+            c3, c4 = st.columns(2)
+            y_mik = c3.number_input("SİPARİŞ MİKTARI", min_value=1)
+            y_term = c4.date_input("TERMİN TARİHİ")
+            
+            if st.form_submit_button("💾 SİPARİŞİ KAYDET"):
+                if not y_s_kod: y_s_kod = f"SIP-{len(st.session_state.data['siparisler']) + 101}"
                 yeni = {
-                    "id": len(st.session_state.data["siparisler"]) + 100, 
-                    "musteri": m, 
-                    "urun": sec_u, 
-                    "miktar": mik, 
-                    "uretilen": 0, 
-                    "termin": str(term)
+                    "kod": y_s_kod.upper(),
+                    "musteri": y_m_adi.upper(),
+                    "urun": y_urun,
+                    "miktar": y_mik,
+                    "uretilen": 0,
+                    "termin": str(y_term)
                 }
                 st.session_state.data["siparisler"].append(yeni)
                 verileri_kaydet(st.session_state.data)
-                st.success("Sipariş Başarıyla Oluşturuldu!")
+                st.success(f"{y_s_kod} NUMARALI SİPARİŞ AÇILDI")
                 st.rerun()
 
-# --- BÖLÜM 2: ÜRÜN AĞACI ---
-elif menu == "⚙️ Ürün Ağacı":
-    st.header("⚙️ Reçete (BOM) Girişi")
-    with st.form("bom_g"):
+# --- BÖLÜM 2: ÜRÜN AĞACI (BOM) ---
+elif menu == "⚙️ ÜRÜN AĞACI (BOM)":
+    st.header("⚙️ ÜRÜN REÇETESİ TANIMLAMA")
+    with st.form("bom_form"):
         c1, c2, c3, c4 = st.columns(4)
-        u_ad = c1.text_input("Ürün Adı")
-        m_ad = c2.text_input("Hammadde")
-        birim = c3.selectbox("Birim", ["Adet", "Metre", "Kg", "Gram"])
-        mik = c4.number_input("Miktar", min_value=0.001, format="%.3f")
-        if st.form_submit_button("Reçeteye Yaz"):
-            if u_ad not in st.session_state.data["urun_agaclari"]: 
-                st.session_state.data["urun_agaclari"][u_ad] = {}
-            st.session_state.data["urun_agaclari"][u_ad][m_ad] = {"miktar": mik, "birim": birim}
-            if m_ad not in st.session_state.data["hammadde_depo"]: 
-                st.session_state.data["hammadde_depo"][m_ad] = {"miktar": 0.0, "birim": birim}
-            verileri_kaydet(st.session_state.data)
-            st.success("Kaydedildi.")
-            st.rerun()
+        u = c1.text_input("ANA ÜRÜN ADI")
+        m = c2.text_input("HAMMADDE ADI")
+        b = c3.selectbox("BİRİM", ["Adet", "Metre", "Kg", "Gram"])
+        mik = c4.number_input("MİKTAR", min_value=0.001, format="%.3f")
+        if st.form_submit_button("REÇETEYE EKLE"):
+            if u not in st.session_state.data["urun_agaclari"]: st.session_state.data["urun_agaclari"][u] = {}
+            st.session_state.data["urun_agaclari"][u][m] = {"miktar": mik, "birim": b}
+            if m not in st.session_state.data["hammadde_depo"]: st.session_state.data["hammadde_depo"][m] = {"miktar": 0.0, "birim": b}
+            verileri_kaydet(st.session_state.data); st.success("BAŞARIYLA EKLENDİ"); st.rerun()
 
 # --- BÖLÜM 3: DEPO ---
-elif menu == "📦 Depo":
-    st.header("📦 Depo Durumu")
-    h_t, m_t = st.tabs(["🏗️ Hammadde", "🏬 Mamul"])
-    with h_t:
+elif menu == "📦 DEPO & STOK":
+    st.header("📦 DEPO DURUMU")
+    h_tab, m_tab = st.tabs(["🏗️ HAMMADDE STOĞU", "🏬 MAMUL STOĞU"])
+    with h_tab:
         depo = st.session_state.data.get("hammadde_depo", {})
         if depo:
-            st.write(pd.DataFrame([{"Malzeme": k, "Mevcut": v["miktar"], "Birim": v["birim"]} for k, v in depo.items()]))
-            with st.expander("Stok Ekle"):
-                s_m = st.selectbox("Malzeme", list(depo.keys()))
-                s_mik = st.number_input("Miktar", min_value=0.1)
-                if st.button("Güncelle"):
+            df_h = pd.DataFrame([{"MALZEME": k, "STOK": v["miktar"], "BİRİM": v["birim"]} for k, v in depo.items()])
+            st.table(df_h)
+            with st.expander("📥 STOK GİRİŞİ YAP"):
+                s_m = st.selectbox("MALZEME SEÇ", list(depo.keys()))
+                s_mik = st.number_input("GELEN MİKTAR", min_value=0.1)
+                if st.button("STOK GÜNCELLE"):
                     st.session_state.data["hammadde_depo"][s_m]["miktar"] += s_mik
-                    verileri_kaydet(st.session_state.data)
-                    st.rerun()
-        else: st.info("Hammadde tanımlı değil.")
-    with m_t:
+                    verileri_kaydet(st.session_state.data); st.rerun()
+    with m_tab:
         mamul = st.session_state.data.get("mamul_depo", [])
-        if mamul: st.write(pd.DataFrame(mamul))
-        else: st.info("Üretim yapılmamış.")
+        if mamul:
+            df_m = pd.DataFrame(mamul).rename(columns={"Tarih": "TARİH", "Müşteri": "MÜŞTERİ", "Ürün": "ÜRÜN", "Adet": "MİKTAR"})
+            st.table(df_m)
 
 # --- BÖLÜM 4: ÜRETİM ---
-elif menu == "🛠️ Üretim":
-    st.header("🛠️ Üretim Kaydı")
+elif menu == "🛠️ ÜRETİM GİRİŞİ":
+    st.header("🛠️ ÜRETİM KAYDI OLUŞTUR")
     sips = st.session_state.data.get("siparisler", [])
-    s_ops = [f"{s['musteri']} | {s['urun']}" for s in sips]
+    s_ops = [f"{s['kod']} | {s['musteri']} | {s['urun']}" for s in sips]
     if s_ops:
-        with st.form("u_f"):
-            s_sec = st.selectbox("Sipariş", s_ops)
-            u_adet = st.number_input("Üretilen Adet", min_value=1)
-            if st.form_submit_button("Üretimi İşle"):
-                sip = next(s for s in sips if f"{s['musteri']} | {s['urun']}" == s_sec)
+        with st.form("üretim_f"):
+            s_sec = st.selectbox("ÜRETİM YAPILAN SİPARİŞ", s_ops)
+            u_adet = st.number_input("ÜRETİLEN ADET", min_value=1)
+            if st.form_submit_button("⚙️ ÜRETİMİ TAMAMLA"):
+                s_kod_sec = s_sec.split(" | ")[0]
+                sip = next(s for s in sips if s['kod'] == s_kod_sec)
+                # Stoktan düş
                 r = st.session_state.data["urun_agaclari"].get(sip['urun'], {})
                 for malz, det in r.items():
                     if malz in st.session_state.data["hammadde_depo"]:
                         st.session_state.data["hammadde_depo"][malz]["miktar"] -= (det["miktar"] * u_adet)
+                # Kaydet
                 st.session_state.data["mamul_depo"].append({"Tarih": str(datetime.date.today()), "Müşteri": sip["musteri"], "Ürün": sip["urun"], "Adet": u_adet})
                 sip["uretilen"] += u_adet
-                verileri_kaydet(st.session_state.data)
-                st.balloons()
-                st.rerun()
-    else: st.info("Aktif sipariş yok.")
+                verileri_kaydet(st.session_state.data); st.balloons(); st.rerun()
+    else: st.info("Üretim yapılacak aktif sipariş bulunamadı.")
 
 # --- BÖLÜM 5: ARŞİV ---
-elif menu == "📊 Arşiv":
-    st.header("📊 Tamamlanan Siparişler")
+elif menu == "📊 ARŞİV":
+    st.header("📊 TAMAMLANAN SİPARİŞLER")
     arsiv = st.session_state.data.get("tamamlanan_siparisler", [])
-    if arsiv: st.write(pd.DataFrame(arsiv))
-    else: st.info("Arşiv boş.")
+    if arsiv:
+        df_a = pd.DataFrame(arsiv).rename(columns={
+            "kod": "SİPARİŞ KODU", "musteri": "MÜŞTERİ", "urun": "ÜRÜN", 
+            "miktar": "HEDEF", "uretilen": "GERÇEKLEŞEN", "bitis_tarihi": "KAPANIŞ"
+        })
+        st.dataframe(df_a, use_container_width=True)
