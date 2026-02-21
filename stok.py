@@ -30,7 +30,7 @@ if 'data' not in st.session_state:
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
-st.set_page_config(page_title="Pro ERP - Akıllı Uyarı Sistemi", layout="wide")
+st.set_page_config(page_title="Pro ERP - Entegre Yönetim", layout="wide")
 
 # --- GİRİŞ EKRANI ---
 if not st.session_state.authenticated:
@@ -62,71 +62,69 @@ menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ YÖNETİMİ", "⚙️ ÜRÜN 
 if menu == "🛒 SİPARİŞ YÖNETİMİ":
     st.header("🛒 SİPARİŞ YÖNETİM MERKEZİ")
     
+    # 1. BÖLÜM: SİPARİŞ LİSTESİ VE YÖNETİMİ
     if st.session_state.data["siparisler"]:
-        # Tabloyu hazırlarken stok durumunu hesapla
-        sip_listesi = []
-        for s in st.session_state.data["siparisler"]:
-            durum_bool, mesaj = stok_kontrol_et(s["urun"], s["miktar"])
-            s_copy = s.copy()
-            s_copy["STOK DURUMU"] = "✅ HAZIR" if durum_bool else "❌ EKSİK"
-            sip_listesi.append(s_copy)
+        st.subheader("📋 AKTİF SİPARİŞLER")
         
-        df_sip = pd.DataFrame(sip_listesi).rename(columns={
-            "kod": "SİPARİŞ KODU", "musteri": "MÜŞTERİ ADI", "urun": "ÜRÜN",
-            "miktar": "HEDEF MİKTAR", "uretilen": "ÜRETİLEN", "termin": "TERMİN TARİHİ"
-        })
-
-        # Renklendirme Fonksiyonu
-        def color_row(row):
-            return ['background-color: #ffcccc' if row["STOK DURUMU"] == "❌ EKSİK" else '' for _ in row]
-
-        st.subheader("📋 AKTİF SİPARİŞ LİSTESİ")
-        st.dataframe(df_sip.style.apply(color_row, axis=1), use_container_width=True)
-
-        st.markdown("---")
-        st.subheader("🛠️ SİPARİŞ DÜZENLE VEYA KAPAT")
+        # Siparişleri stok durumuna göre listele
         for idx, s in enumerate(st.session_state.data["siparisler"]):
-            with st.expander(f"📝 DÜZENLE: {s.get('kod')} - {s['musteri']}"):
+            durum_bool, _ = stok_kontrol_et(s["urun"], s["miktar"])
+            durum_etiketi = "✅ HAZIR" if durum_bool else "❌ STOK EKSİK"
+            renk = "#ffcccc" if not durum_bool else "#e6fffa"
+            
+            # Her siparişi bir kutu (expander) içine alıyoruz
+            with st.expander(f"{durum_etiketi} | {s.get('kod')} - {s['musteri']} | Ürün: {s['urun']} | Hedef: {s['miktar']}"):
+                st.markdown(f"**Mevcut Durum:** {s['uretilen']} adet üretildi. Termin: {s['termin']}")
+                
+                # Düzenleme Formu - Siparişin tam yanında
                 c1, c2, c3 = st.columns(3)
-                y_mik = c1.number_input("YENİ MİKTAR", value=int(s['miktar']), key=f"mik_{idx}")
-                y_term = c2.date_input("YENİ TERMİN", value=datetime.datetime.strptime(s['termin'], "%Y-%m-%d"), key=f"term_{idx}")
-                y_kod = c3.text_input("KODU REVİZE ET", value=s.get('kod'), key=f"kod_{idx}")
+                y_mik = c1.number_input("Miktar Düzenle", value=int(s['miktar']), key=f"edit_mik_{idx}")
+                y_term = c2.date_input("Termin Düzenle", value=datetime.datetime.strptime(s['termin'], "%Y-%m-%d"), key=f"edit_term_{idx}")
+                y_kod = c3.text_input("Kod Revize", value=s.get('kod'), key=f"edit_kod_{idx}")
                 
-                if st.button("✅ GÜNCELLE", key=f"btn_g_{idx}"):
+                b1, b2, b3 = st.columns([1, 1, 2])
+                if b1.button("💾 GÜNCELLE", key=f"save_btn_{idx}"):
                     s['miktar'], s['termin'], s['kod'] = y_mik, str(y_term), y_kod.upper()
-                    verileri_kaydet(st.session_state.data); st.success("GÜNCELLENDİ!"); st.rerun()
+                    verileri_kaydet(st.session_state.data)
+                    st.success("Güncellendi!")
+                    st.rerun()
                 
-                if st.button("🏁 SİPARİŞİ KAPAT", key=f"btn_k_{idx}"):
+                if b2.button("🏁 SİPARİŞİ KAPAT", key=f"close_btn_{idx}"):
                     s["bitis_tarihi"] = str(datetime.date.today())
                     st.session_state.data["tamamlanan_siparisler"].append(s)
                     st.session_state.data["siparisler"].pop(idx)
-                    verileri_kaydet(st.session_state.data); st.rerun()
+                    verileri_kaydet(st.session_state.data)
+                    st.rerun()
+    else:
+        st.info("Henüz aktif sipariş bulunmuyor.")
 
+    st.markdown("---")
+
+    # 2. BÖLÜM: YENİ SİPARİŞ EKLEME
     with st.expander("➕ YENİ SİPARİŞ OLUŞTUR"):
         toplam_sip = len(st.session_state.data["siparisler"]) + len(st.session_state.data["tamamlanan_siparisler"])
         otomatik_kod = f"SIP-{1001 + toplam_sip}"
         
         with st.form("yeni_sip"):
-            st.info(f"OTOMATİK KOD: **{otomatik_kod}**")
+            st.info(f"YENİ SİPARİŞ KODU: **{otomatik_kod}**")
             y_m_adi = st.text_input("MÜŞTERİ ADI")
             u_list = list(st.session_state.data.get("urun_agaclari", {}).keys())
             y_urun = st.selectbox("ÜRÜN SEÇİN", u_list if u_list else ["Önce Reçete Tanımlayın"])
             y_mik = st.number_input("SİPARİŞ MİKTARI", min_value=1)
             y_term = st.date_input("TERMİN TARİHİ")
             
-            if st.form_submit_button("💾 SİPARİŞİ KAYDET"):
-                # Kaydetmeden önce kontrol et ama engelleme
+            if st.form_submit_button("🚀 SİPARİŞİ SİSTEME GİR"):
                 durum_bool, _ = stok_kontrol_et(y_urun, y_mik)
                 if not durum_bool:
-                    st.warning("⚠️ DİKKAT: Stok yetersiz ancak sipariş oluşturuluyor.")
+                    st.warning("⚠️ Stok yetersiz olsa da sipariş açılıyor.")
                 
                 yeni = {"kod": otomatik_kod, "musteri": y_m_adi.upper(), "urun": y_urun, "miktar": y_mik, "uretilen": 0, "termin": str(y_term)}
                 st.session_state.data["siparisler"].append(yeni)
                 verileri_kaydet(st.session_state.data)
-                st.success(f"{otomatik_kod} nolu sipariş açıldı.")
+                st.success(f"Açıldı: {otomatik_kod}")
                 st.rerun()
 
-# --- BÖLÜM 2: ÜRÜN AĞACI ---
+# --- BÖLÜM 2, 3, 4, 5 (Diğer kısımlar aynı mantıkla çalışmaya devam eder) ---
 elif menu == "⚙️ ÜRÜN AĞACI (BOM)":
     st.header("⚙️ ÜRÜN REÇETESİ TANIMLAMA")
     with st.form("bom_form"):
@@ -138,51 +136,43 @@ elif menu == "⚙️ ÜRÜN AĞACI (BOM)":
             if u not in st.session_state.data["urun_agaclari"]: st.session_state.data["urun_agaclari"][u] = {}
             st.session_state.data["urun_agaclari"][u][m] = {"miktar": mik, "birim": b}
             if m not in st.session_state.data["hammadde_depo"]: st.session_state.data["hammadde_depo"][m] = {"miktar": 0.0, "birim": b}
-            verileri_kaydet(st.session_state.data); st.success("REÇETE GÜNCELLENDİ"); st.rerun()
+            verileri_kaydet(st.session_state.data); st.success("Kaydedildi."); st.rerun()
 
-# --- BÖLÜM 3: DEPO ---
 elif menu == "📦 DEPO & STOK":
     st.header("📦 DEPO DURUMU")
-    h_tab, m_tab = st.tabs(["🏗️ HAMMADDE STOĞU", "🏬 MAMUL STOĞU"])
+    h_tab, m_tab = st.tabs(["🏗️ HAMMADDE", "🏬 MAMUL"])
     with h_tab:
         depo = st.session_state.data.get("hammadde_depo", {})
         if depo:
-            df_h = pd.DataFrame([{"MALZEME": k, "STOK": v["miktar"], "BİRİM": v["birim"]} for k, v in depo.items()])
-            st.table(df_h)
-            with st.expander("📥 STOK GİRİŞİ YAP"):
-                s_m, s_mik = st.selectbox("MALZEME SEÇ", list(depo.keys())), st.number_input("GELEN MİKTAR", min_value=0.1)
-                if st.button("STOK GÜNCELLE"):
+            st.table(pd.DataFrame([{"MALZEME": k, "STOK": v["miktar"], "BİRİM": v["birim"]} for k, v in depo.items()]))
+            with st.expander("📥 STOK EKLE"):
+                s_m, s_mik = st.selectbox("MALZEME", list(depo.keys())), st.number_input("MİKTAR", min_value=0.1)
+                if st.button("GÜNCELLE"):
                     st.session_state.data["hammadde_depo"][s_m]["miktar"] += s_mik
                     verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- BÖLÜM 4: ÜRETİM (BURADA ENGEL DEVAM EDER) ---
 elif menu == "🛠️ ÜRETİM GİRİŞİ":
-    st.header("🛠️ ÜRETİM KAYDI OLUŞTUR")
+    st.header("🛠️ ÜRETİM KAYDI")
     sips = st.session_state.data.get("siparisler", [])
     s_ops = [f"{s['kod']} | {s['musteri']} | {s['urun']}" for s in sips]
     if s_ops:
         with st.form("üretim_f"):
-            s_sec, u_adet = st.selectbox("SİPARİŞ SEÇİN", s_ops), st.number_input("ÜRETİLEN ADET", min_value=1)
-            if st.form_submit_button("⚙️ ÜRETİMİ TAMAMLA"):
+            s_sec, u_adet = st.selectbox("SİPARİŞ", s_ops), st.number_input("ADET", min_value=1)
+            if st.form_submit_button("⚙️ ÜRETİMİ İŞLE"):
                 s_kod_sec = s_sec.split(" | ")[0]
                 sip = next(s for s in sips if s['kod'] == s_kod_sec)
-                
                 stok_hatasi, r = False, st.session_state.data["urun_agaclari"].get(sip['urun'], {})
                 for malz, det in r.items():
                     if st.session_state.data["hammadde_depo"].get(malz, {}).get("miktar", 0) < (det["miktar"] * u_adet):
-                        stok_hatasi = True
-                        st.error(f"Üretim yapılamaz! {malz} stoğu yetersiz.")
-                
+                        stok_hatasi = True; st.error(f"Eksik: {malz}")
                 if not stok_hatasi:
                     for malz, det in r.items(): st.session_state.data["hammadde_depo"][malz]["miktar"] -= (det["miktar"] * u_adet)
                     st.session_state.data["mamul_depo"].append({"Tarih": str(datetime.date.today()), "Müşteri": sip["musteri"], "Ürün": sip["urun"], "Adet": u_adet})
                     sip["uretilen"] += u_adet
                     verileri_kaydet(st.session_state.data); st.balloons(); st.rerun()
 
-# --- BÖLÜM 5: ARŞİV ---
 elif menu == "📊 ARŞİV":
     st.header("📊 TAMAMLANAN SİPARİŞLER")
     arsiv = st.session_state.data.get("tamamlanan_siparisler", [])
     if arsiv:
-        df_a = pd.DataFrame(arsiv).rename(columns={"kod": "SİPARİŞ KODU", "musteri": "MÜŞTERİ", "urun": "ÜRÜN", "miktar": "HEDEF", "uretilen": "GERÇEKLEŞEN", "bitis_tarihi": "KAPANIŞ"})
-        st.dataframe(df_a, use_container_width=True)
+        st.dataframe(pd.DataFrame(arsiv), use_container_width=True)
