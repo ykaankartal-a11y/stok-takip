@@ -8,7 +8,6 @@ import pandas as pd
 VERI_DOSYASI = "stok_verileri.json"
 
 def verileri_yukle():
-    # Sistemin çalışması için gereken standart yapı
     varsayilan = {
         "hammadde_depo": {}, 
         "mamul_depo": [], 
@@ -22,10 +21,10 @@ def verileri_yukle():
         try:
             with open(VERI_DOSYASI, "r", encoding="utf-8") as f:
                 mevcut = json.load(f)
-                # KÖK ÇÖZÜM: Eğer dosya varsa ama içindeki kutular (anahtarlar) eksikse tamamla
-                for anahtar in varsayilan:
-                    if anahtar not in mevcut:
-                        mevcut[anahtar] = varsayilan[anahtar]
+                # FORMAT KONTROLÜ VE TAMİRİ (AttributeError Önleyici)
+                for anahtar, tip in varsayilan.items():
+                    if anahtar not in mevcut or type(mevcut[anahtar]) != type(tip):
+                        mevcut[anahtar] = tip
                 return mevcut
         except:
             return varsayilan
@@ -35,14 +34,15 @@ def verileri_kaydet(veri):
     with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
-# Uygulama başladığında veriyi "Zırhlı" şekilde yükle
+# Uygulama başladığında veriyi "Süper Güvenli" yükle
 if 'data' not in st.session_state:
     st.session_state.data = verileri_yukle()
 
-# Eğer session_state içindeki data'da eksiklik varsa tamamla (Çalışma anı koruması)
-for anahtar in ["siparisler", "tamamlanan_siparisler", "urun_agaclari", "hammadde_depo", "mamul_depo"]:
-    if anahtar not in st.session_state.data:
-        st.session_state.data[anahtar] = [] if isinstance(anahtar, list) else {}
+# Çalışma anında her ihtimale karşı tip kontrolü
+if not isinstance(st.session_state.data.get("siparisler"), list):
+    st.session_state.data["siparisler"] = []
+if not isinstance(st.session_state.data.get("tamamlanan_siparisler"), list):
+    st.session_state.data["tamamlanan_siparisler"] = []
 
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
@@ -76,10 +76,9 @@ menu = st.sidebar.radio("Bölüm Seçiniz:", ["🛒 Siparişler", "⚙️ Ürün
 if menu == "🛒 Siparişler":
     st.header("🛒 Aktif Müşteri Siparişleri")
     
-    aktif_siparisler = st.session_state.data.get("siparisler", [])
-    
-    if aktif_siparisler:
-        for idx, s in enumerate(aktif_siparisler):
+    # Mevcut siparişleri listele
+    if st.session_state.data["siparisler"]:
+        for idx, s in enumerate(st.session_state.data["siparisler"]):
             c1, c2, c3 = st.columns([3, 1, 1])
             c1.write(f"**{s['musteri']}** - {s['urun']} (Hedef: {s['miktar']})")
             c2.info(f"Üretilen: {s['uretilen']}")
@@ -100,17 +99,13 @@ if menu == "🛒 Siparişler":
             term = c2.date_input("Termin")
             if st.form_submit_button("Kaydet"):
                 yeni = {
-                    "id": len(st.session_state.data.get("siparisler", [])) + 100, 
+                    "id": len(st.session_state.data["siparisler"]) + 100, 
                     "musteri": m, 
                     "urun": sec_u, 
                     "miktar": mik, 
                     "uretilen": 0, 
                     "termin": str(term)
                 }
-                # Hata ihtimaline karşı listenin varlığını son kez kontrol et
-                if "siparisler" not in st.session_state.data:
-                    st.session_state.data["siparisler"] = []
-                
                 st.session_state.data["siparisler"].append(yeni)
                 verileri_kaydet(st.session_state.data)
                 st.success("Sipariş Başarıyla Oluşturuldu!")
@@ -132,7 +127,7 @@ elif menu == "⚙️ Ürün Ağacı":
             if m_ad not in st.session_state.data["hammadde_depo"]: 
                 st.session_state.data["hammadde_depo"][m_ad] = {"miktar": 0.0, "birim": birim}
             verileri_kaydet(st.session_state.data)
-            st.success("Reçete ve Malzeme Tanımlandı.")
+            st.success("Kaydedildi.")
             st.rerun()
 
 # --- BÖLÜM 3: DEPO ---
