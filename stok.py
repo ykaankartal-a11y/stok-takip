@@ -39,6 +39,11 @@ def verileri_kaydet(veri):
 if 'data' not in st.session_state:
     st.session_state.data = verileri_yukle()
 
+# Eğer session_state içindeki data'da eksiklik varsa tamamla (Çalışma anı koruması)
+for anahtar in ["siparisler", "tamamlanan_siparisler", "urun_agaclari", "hammadde_depo", "mamul_depo"]:
+    if anahtar not in st.session_state.data:
+        st.session_state.data[anahtar] = [] if isinstance(anahtar, list) else {}
+
 if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 
@@ -71,7 +76,6 @@ menu = st.sidebar.radio("Bölüm Seçiniz:", ["🛒 Siparişler", "⚙️ Ürün
 if menu == "🛒 Siparişler":
     st.header("🛒 Aktif Müşteri Siparişleri")
     
-    # Hata veren satırı korumaya aldık (.get kullanarak)
     aktif_siparisler = st.session_state.data.get("siparisler", [])
     
     if aktif_siparisler:
@@ -95,7 +99,6 @@ if menu == "🛒 Siparişler":
             mik = c1.number_input("Miktar", min_value=1)
             term = c2.date_input("Termin")
             if st.form_submit_button("Kaydet"):
-                # Hata veren satırın daha güvenli hali:
                 yeni = {
                     "id": len(st.session_state.data.get("siparisler", [])) + 100, 
                     "musteri": m, 
@@ -104,6 +107,10 @@ if menu == "🛒 Siparişler":
                     "uretilen": 0, 
                     "termin": str(term)
                 }
+                # Hata ihtimaline karşı listenin varlığını son kez kontrol et
+                if "siparisler" not in st.session_state.data:
+                    st.session_state.data["siparisler"] = []
+                
                 st.session_state.data["siparisler"].append(yeni)
                 verileri_kaydet(st.session_state.data)
                 st.success("Sipariş Başarıyla Oluşturuldu!")
