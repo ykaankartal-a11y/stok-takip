@@ -20,7 +20,7 @@ def verileri_kaydet(veri):
     with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
-# Her sayfa yenilendiğinde veriyi dosyadan tekrar oku (Senkronizasyon için önemli)
+# Her sayfa yenilendiğinde veriyi dosyadan tekrar oku
 st.session_state.data = verileri_yukle()
 
 st.set_page_config(page_title="Akıllı Fabrika", layout="wide")
@@ -48,7 +48,6 @@ if menu == "⚙️ Ürün Ağacı":
                         st.session_state.data["urun_agaclari"][u_ad] = {}
                     st.session_state.data["urun_agaclari"][u_ad][m_ad] = {"miktar": mik, "birim": birim}
                     if m_ad not in st.session_state.data["depo"]:
-                        # Ana depo birimini belirle
                         depo_birimi = "Metre" if birim in ["mm", "cm", "Metre"] else ("Kg" if birim in ["Gram", "Kg"] else "Adet")
                         st.session_state.data["depo"][m_ad] = {"miktar": 0.0, "birim": depo_birimi}
                     verileri_kaydet(st.session_state.data)
@@ -81,7 +80,6 @@ if menu == "⚙️ Ürün Ağacı":
 elif menu == "📦 Depo":
     st.header("📦 Stok Durumu")
     ara = st.text_input("🔍 Ara...")
-    # Filtreli listeyi oluştur
     liste = [{"Malzeme": k, "Miktar": v["miktar"], "Birim": v["birim"]} for k, v in st.session_state.data["depo"].items() if ara.lower() in k.lower()]
     st.table(liste if ara else [])
     
@@ -112,10 +110,12 @@ elif menu == "🛠️ Üretim":
             lazim = d["miktar"] * adet
             depo_v = st.session_state.data["depo"][m]
             
-            # Dönüşüm
+            # Dönüşüm (Hata Düzeltildi)
             m_dus = lazim
-            if d["birim"] in ["mm", "Gram"] and depo_v["birim"] in ["Metre", "Kg"]: m_dus = lazim / 1000
-            elif d["birim"] == "cm" and depo_v["birim"] == "Metre"]: m_dus = lazim / 100
+            if d["birim"] in ["mm", "Gram"] and depo_v["birim"] in ["Metre", "Kg"]: 
+                m_dus = lazim / 1000
+            elif d["birim"] == "cm" and depo_v["birim"] == "Metre": 
+                m_dus = lazim / 100
             
             dus_list[m] = m_dus
             ok = depo_v["miktar"] >= m_dus
