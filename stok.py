@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import os
 import pandas as pd
-from datetime import datetime
 
 # --- VERİ YÖNETİMİ ---
 VERI_DOSYASI = "stok_verileri.json"
@@ -25,8 +24,7 @@ def verileri_kaydet(veri):
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
 if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
-# Geçici reçete tutucu
-if 'temp_recete' not in st.session_state: st.session_state.temp_recete = {}
+if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 
@@ -37,38 +35,45 @@ menu = st.sidebar.radio("MENÜ", ["📦 DEPO", "⚙️ REÇETE TANIMLA", "📋 M
 
 if menu == "📦 DEPO":
     st.header("📦 DEPO YÖNETİMİ")
-    # ... (Depo kodu aynı kalabilir) ...
+    c1, c2, c3, c4 = st.columns(4)
+    isim = c1.text_input("MALZEME ADI").upper()
+    miktar = c2.number_input("MİKTAR", format="%.3f")
+    birim = c3.selectbox("BİRİM", BIRIM_LISTESI)
+    fiyat = c4.number_input("BİRİM FİYAT (₺)")
+    if st.button("KAYDET"):
+        st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim, "FİYAT": fiyat}
+        verileri_kaydet(st.session_state.data); st.rerun()
+    if st.session_state.data.get("DEPO"): st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
 
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ YENİ REÇETE TANIMLA")
     urun = st.text_input("ÜRÜN ADI").upper()
     
-    # Hammadde Ekleme Bölümü
-    c_ad, c_mik, c_bir, c_btn = st.columns([2, 1, 1, 1])
-    m_ad = c_ad.text_input("Hammadde")
-    m_mik = c_mik.number_input("Miktar", format="%.4f")
-    m_bir = c_bir.selectbox("Birim", BIRIM_LISTESI)
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    h_ad = col1.text_input("Hammadde Adı")
+    h_mik = col2.number_input("Miktar", format="%.4f")
+    h_bir = col3.selectbox("Birim", BIRIM_LISTESI)
     
-    if c_btn.button("➕ LİSTEYE EKLE"):
-        if m_ad:
-            st.session_state.temp_recete[m_ad.upper()] = {"MİKTAR": m_mik, "BİRİM": m_bir}
+    if col4.button("➕ EKLE"):
+        if h_ad:
+            st.session_state.temp_liste.append({"Hammadde": h_ad.upper(), "Miktar": h_mik, "Birim": h_bir})
             st.rerun()
-
-    # Geçici listeyi göster
-    if st.session_state.temp_recete:
-        st.write("EKLENENLER:", st.session_state.temp_recete)
-        if st.button("💾 REÇETEYİ KAYDET"):
+            
+    if st.session_state.temp_liste:
+        st.table(pd.DataFrame(st.session_state.temp_liste))
+        if st.button("💾 REÇETEYİ TAMAMLA"):
             if urun:
-                st.session_state.data["RECETELER"][urun] = st.session_state.temp_recete
-                st.session_state.temp_recete = {}
+                st.session_state.data["RECETELER"][urun] = {item["Hammadde"]: {"MİKTAR": item["Miktar"], "BİRİM": item["Birim"]} for item in st.session_state.temp_liste}
                 verileri_kaydet(st.session_state.data)
-                st.success("Reçete başarıyla kaydedildi!")
+                st.session_state.temp_liste = []
                 st.rerun()
-        if st.button("❌ LİSTEYİ SIFIRLA"):
-            st.session_state.temp_recete = {}
-            st.rerun()
 
 elif menu == "📋 MEVCUT REÇETELER":
-    # ... (Düzenleme sekmesi aynı) ...
-    pass
-# ... (Diğer sekmeler aynı) ...
+    st.header("📋 MEVCUT REÇETELER")
+    secilen = st.selectbox("ÜRÜN SEÇİN", list(st.session_state.data.get("RECETELER", {}).keys()))
+    if secilen:
+        df = pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T
+        st.table(df)
+        st.info("Düzenleme yapmak için yukarıdaki listeden madde ismini girip tanımlama ekranına gidebilirsiniz.")
+
+# Diğer kısımlar... (Siparişler vs.)
