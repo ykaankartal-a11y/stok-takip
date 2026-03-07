@@ -62,7 +62,12 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                     for mad, info in recete.items(): st.session_state.data["DEPO"][mad]["MİKTAR"] -= (info["MİKTAR"] * miktar)
                     s["ÜRETİLEN"] += miktar; s["MALIYET"] += maliyet
                     verileri_kaydet(st.session_state.data); st.rerun()
+            
+            # --- NOT ALANI EKLENDİ ---
+            kapatma_notu = st.text_input(f"Sipariş Kapatma Notu", key=f"not_{i}")
             if st.button("✅ KAPAT VE ARŞİVLE", key=f"k_{i}"):
+                s["KAPATMA_NOTU"] = kapatma_notu
+                s["KAPATILMA_TARİHİ"] = str(datetime.now())
                 st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                 verileri_kaydet(st.session_state.data); st.rerun()
 
