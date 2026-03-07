@@ -36,9 +36,9 @@ if menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
     mus = st.text_input("MÜŞTERİ ADI").upper()
     urunler = list(st.session_state.data.get("RECETELER", {}).keys())
-    uru = st.selectbox("ÜRÜN", urunler) if urunler else st.error("Önce Reçete Tanımlayın!")
+    uru = st.selectbox("ÜRÜN", urunler) if urunler else None
     adet = st.number_input("SİPARİŞ ADEDİ", min_value=1, step=1)
-    if st.button("SİPARİŞİ ONAYLA") and urunler:
+    if st.button("SİPARİŞİ ONAYLA") and uru:
         st.session_state.data["SIPARIS_SAYAC"] += 1
         st.session_state.data["SIPARISLER"].append({"NO": st.session_state.data["SIPARIS_SAYAC"], "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "ÜRETİLEN": 0})
         verileri_kaydet(st.session_state.data); st.rerun()
@@ -48,27 +48,36 @@ elif menu == "📋 AKTİF SİPARİŞLER":
     if not st.session_state.data["SIPARISLER"]: st.info("Aktif sipariş yok.")
     else:
         for i, s in enumerate(st.session_state.data["SIPARISLER"]):
-            # HATA ÇÖZÜMÜ: .get("ÜRETİLEN", 0) ile eski veriyi koruyoruz
             uretilmis = s.get("ÜRETİLEN", 0)
             kalan = s["ADET"] - uretilmis
             with st.container(border=True):
                 st.write(f"**No:** {s['NO']} | **Ürün:** {s['ÜRÜN']} | **Toplam:** {s['ADET']} | **Üretilen:** {uretilmis} | **Kalan:** {kalan}")
+                
+                # key={f"uretim_{i}"} kısmını buraya taşıyoruz
                 miktar = st.number_input(f"Üretim Adedi ({s['NO']})", 1, kalan, key=f"uretim_{i}")
-                if st.button("🚀 ÜRETİMİ KAYDET", key=f"btn_{i}"):
+                
+                if st.button("🚀 ÜRETİMİ KAYDET", key=f"btn_{i}", type="primary"):
                     recete = st.session_state.data["RECETELER"].get(s['ÜRÜN'], {})
                     hata = False
                     for mad, info in recete.items():
                         gerekli = info["MİKTAR"] * miktar
                         if mad not in st.session_state.data["DEPO"] or st.session_state.data["DEPO"][mad]["MİKTAR"] < gerekli:
                             hata = True; st.error(f"Eksik Hammadde: {mad}")
+                    
                     if not hata:
                         for mad, info in recete.items():
                             st.session_state.data["DEPO"][mad]["MİKTAR"] -= (info["MİKTAR"] * miktar)
+                        
                         s["ÜRETİLEN"] = uretilmis + miktar
                         if s["ÜRETİLEN"] >= s["ADET"]:
                             st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
-                        verileri_kaydet(st.session_state.data); st.rerun()
+                        
+                        verileri_kaydet(st.session_state.data)
+                        st.success(f"{miktar} adet üretim başarıyla kaydedildi!")
+                        # rerun işleminden önce kısa bir bekleme veya onay görülebilir
+                        st.rerun() 
 
+# ... (REÇETE, DEPO, ARŞİV modülleri önceki kodla aynı) ...
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ REÇETE TANIMLA")
     urun = st.text_input("ÜRÜN ADI").upper()
@@ -81,11 +90,6 @@ elif menu == "⚙️ REÇETE TANIMLA":
         if st.button("💾 REÇETEYİ KAYDET"):
             st.session_state.data["RECETELER"][urun] = {i["Hammadde"]: {"MİKTAR": i["Miktar"], "BİRİM": i["Birim"]} for i in st.session_state.temp_liste}
             verileri_kaydet(st.session_state.data); st.session_state.temp_liste = []; st.rerun()
-
-elif menu == "📋 MEVCUT REÇETELER":
-    st.header("📋 MEVCUT REÇETELER")
-    secilen = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
-    if secilen: st.table(pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T)
 
 elif menu == "📦 DEPO":
     st.header("📦 DEPO YÖNETİMİ")
