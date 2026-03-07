@@ -4,7 +4,6 @@ import os
 import pandas as pd
 from datetime import datetime
 
-# --- VERİ VE DOSYA YÖNETİMİ ---
 VERI_DOSYASI = "stok_verileri.json"
 BIRIM_LISTESI = ["KG", "GR", "ADET", "LİTRE", "METRE", "PAKET"]
 
@@ -28,21 +27,29 @@ if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
 if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
-
-# --- MENÜ ---
 menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "⚙️ REÇETE TANIMLA", "📋 MEVCUT REÇETELER", "📦 DEPO", "📊 ARŞİV"])
 
 # --- MODÜLLER ---
 
 if menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
-    mus = st.text_input("MÜŞTERİ ADI").upper()
+    col1, col2 = st.columns(2)
+    mus = col1.text_input("MÜŞTERİ ADI").upper()
     urunler = list(st.session_state.data["RECETELER"].keys())
-    uru = st.selectbox("ÜRÜN", urunler) if urunler else None
-    adet = st.number_input("SİPARİŞ ADEDİ", min_value=1, step=1)
+    uru = col2.selectbox("ÜRÜN", urunler) if urunler else None
+    
+    col3, col4, col5 = st.columns(3)
+    adet = col3.number_input("ADET", min_value=1, step=1)
+    fiyat = col4.number_input("TOPLAM FİYAT (₺)", min_value=0.0, format="%.2f")
+    termin = col5.date_input("TERMİN TARİHİ")
+    
     if st.button("SİPARİŞİ ONAYLA") and uru:
         st.session_state.data["SIPARIS_SAYAC"] += 1
-        st.session_state.data["SIPARISLER"].append({"NO": st.session_state.data["SIPARIS_SAYAC"], "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "ÜRETİLEN": 0})
+        st.session_state.data["SIPARISLER"].append({
+            "NO": st.session_state.data["SIPARIS_SAYAC"], 
+            "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, 
+            "FİYAT": fiyat, "TERMİN": str(termin), "ÜRETİLEN": 0
+        })
         verileri_kaydet(st.session_state.data); st.rerun()
 
 elif menu == "📋 AKTİF SİPARİŞLER":
@@ -51,9 +58,11 @@ elif menu == "📋 AKTİF SİPARİŞLER":
     else:
         for i, s in enumerate(st.session_state.data["SIPARISLER"]):
             with st.container(border=True):
-                st.write(f"**No:** {s['NO']} | **Ürün:** {s['ÜRÜN']} | **Sipariş:** {s['ADET']} | **Üretilen:** {s.get('ÜRETİLEN', 0)}")
+                st.write(f"**No:** {s['NO']} | **Ürün:** {s['ÜRÜN']} | **Adet:** {s['ADET']} | **Fiyat:** {s['FİYAT']}₺ | **Termin:** {s['TERMİN']}")
+                st.write(f"**Üretilen:** {s.get('ÜRETİLEN', 0)}")
+                
                 c1, c2 = st.columns([2, 1])
-                miktar = c1.number_input(f"Üretim Adedi ({s['NO']})", min_value=1, step=1, key=f"uretim_{i}")
+                miktar = c1.number_input(f"Üretim Miktarı ({s['NO']})", min_value=1, step=1, key=f"uretim_{i}")
                 if c2.button("🚀 ÜRETİMİ KAYDET", key=f"btn_{i}"):
                     recete = st.session_state.data["RECETELER"].get(s['ÜRÜN'], {})
                     hata = False
@@ -73,29 +82,40 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                     st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                     verileri_kaydet(st.session_state.data); st.rerun()
 
+elif menu == "⚙️ REÇETE TANIMLA":
+    st.header("⚙️ REÇETE TANIMLA")
+    urun = st.text_input("ÜRÜN ADI").upper()
+    h_ad, h_mik = st.text_input("Hammadde Adı"), st.number_input("Miktar", format="%.4f")
+    h_bir = st.selectbox("Birim", BIRIM_LISTESI)
+    if st.button("➕ LİSTEYE EKLE"): st.session_state.temp_liste.append({"Hammadde": h_ad.upper(), "Miktar": h_mik, "Birim": h_bir})
+    if st.session_state.temp_liste:
+        st.table(pd.DataFrame(st.session_state.temp_liste))
+        if st.button("💾 REÇETEYİ KAYDET"):
+            st.session_state.data["RECETELER"][urun] = {i["Hammadde"]: {"MİKTAR": i["Miktar"], "BİRİM": i["Birim"]} for i in st.session_state.temp_liste}
+            verileri_kaydet(st.session_state.data); st.session_state.temp_liste = []; st.rerun()
+
+elif menu == "📋 MEVCUT REÇETELER":
+    st.header("📋 MEVCUT REÇETELER")
+    secilen = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
+    if secilen:
+        st.table(pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T)
+        if st.button("❌ SİL"): del st.session_state.data["RECETELER"][secilen]; verileri_kaydet(st.session_state.data); st.rerun()
+
+elif menu == "📦 DEPO":
+    st.header("📦 DEPO YÖNETİMİ")
+    isim, miktar = st.text_input("MALZEME").upper(), st.number_input("MİKTAR", format="%.3f")
+    if st.button("KAYDET"): st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar}; verileri_kaydet(st.session_state.data); st.rerun()
+    if st.session_state.data["DEPO"]: st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
+
 elif menu == "📊 ARŞİV":
     st.header("📊 ARŞİV")
-    
-    # 1. Arama Bloğu (Sipariş Kodu, Müşteri, Ürün)
-    arama = st.text_input("🔍 ARA (Sipariş No, Müşteri veya Ürün)").upper()
+    arama = st.text_input("🔍 ARA (Kod/Müşteri/Ürün)").upper()
     df = pd.DataFrame(st.session_state.data["ARSIV"])
-    
     if not df.empty:
-        # Filtreleme
-        if arama:
-            df = df[df.apply(lambda row: arama in str(row['NO']) or arama in str(row['MÜŞTERİ']) or arama in str(row['ÜRÜN']), axis=1)]
-        
-        # 2. Sayfalandırma (Butonlu)
-        s_bas = 10
-        toplam_sayfa = (len(df) - 1) // s_bas + 1
-        
-        # Sayfa durumu yönetimi
-        if 'page' not in st.session_state: st.session_state.page = 1
-        
-        # Buton satırı
+        if arama: df = df[df.apply(lambda row: arama in str(row['NO']) or arama in str(row['MÜŞTERİ']) or arama in str(row['ÜRÜN']), axis=1)]
+        sayfa_basina, page = 10, st.session_state.get('page', 1)
+        toplam_sayfa = (len(df) - 1) // sayfa_basina + 1
         cols = st.columns(min(toplam_sayfa, 10))
-        for i in range(toplam_sayfa):
-            if cols[i].button(str(i+1)): st.session_state.page = i+1
-        
-        st.table(df.iloc[(st.session_state.page-1)*s_bas : st.session_state.page*s_bas])
-    else: st.info("Arşiv boş.")
+        for i in range(min(toplam_sayfa, 10)):
+            if cols[i].button(str(i+1)): st.session_state.page = i+1; st.rerun()
+        st.table(df.iloc[(page-1)*sayfa_basina : page*sayfa_basina])
