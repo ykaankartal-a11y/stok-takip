@@ -83,7 +83,7 @@ def yeni_siparis_penceresi():
     u_list = list(st.session_state.data.get("urun_agaclari", {}).keys())
     sec_u = st.selectbox("Ürün Seçin", u_list if u_list else ["Reçete Tanımlayın"])
     c1, c2 = st.columns(2)
-    mik = c1.number_input("Miktar", min_value=1, step=1)
+    mik = c1.number_input("Miktar", min_value=1, value=1, step=1)
     term = c2.date_input("Termin")
     if st.button("💾 SİPARİŞİ OLUŞTUR", use_container_width=True):
         if m_adi:
@@ -140,7 +140,7 @@ elif menu == "🛠️ ÜRETİM KAYDI":
         sec_etiket = st.selectbox("Sipariş Seçin:", list(sip_secenekleri.keys()))
         sec_sip = sip_secenekleri[sec_etiket]
         with st.form("uretim"):
-            u_mik = st.number_input(f"{sec_sip['urun']} Üretilen Miktar", min_value=1, step=1)
+            u_mik = st.number_input(f"{sec_sip['urun']} Üretilen Miktar", min_value=1, value=1, step=1)
             if st.form_submit_button("Üretimi Onayla"):
                 tamam_mi, _ = stok_analizi(sec_sip['urun'], u_mik)
                 if not tamam_mi: st.error("Stok yetersiz! Lütfen hammadde stoğunu kontrol edin.")
@@ -160,7 +160,7 @@ elif menu == "⚙️ ÜRÜN REÇETELERİ":
         for i in range(st.session_state.rows):
             c1, c2, c3 = st.columns([3, 2, 2])
             with c1: st.text_input(f"Hammadde {i+1}", key=f"h_ad_{i}", placeholder="Hammadde Adı").upper()
-            with c2: st.number_input("Miktar", min_value=0.001, format="%.3f", key=f"h_mik_{i}")
+            with c2: st.number_input("Miktar", min_value=0.0, value=0.0, format="%.2f", key=f"h_mik_{i}", help="Küsuratlı ise nokta kullanın.")
             with c3: st.selectbox("Birim", ["ADET", "KG", "METRE", "GRAM"], key=f"h_birim_{i}")
         
         c_alt1, c_alt2 = st.columns([1, 4])
@@ -205,7 +205,7 @@ elif menu == "📦 DEPO DURUMU":
             st.table(pd.DataFrame(h_list))
             with st.expander("📥 Stok Girişi"):
                 s_m = st.selectbox("Malzeme", list(h_depo.keys()))
-                s_mik = st.number_input("Gelen Miktar", min_value=0.001, format="%.3f")
+                s_mik = st.number_input("Gelen Miktar", min_value=0.0, value=0.0, format="%.2f")
                 if st.button("Depoya Ekle"):
                     st.session_state.data["hammadde_depo"][s_m]["miktar"] += s_mik
                     verileri_kaydet(st.session_state.data); st.rerun()
