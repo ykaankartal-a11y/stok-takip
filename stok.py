@@ -34,26 +34,29 @@ menu = st.sidebar.radio("MENÜ", ["📦 DEPO", "⚙️ REÇETE TANIMLA", "📋 M
 
 if menu == "📦 DEPO":
     st.header("📦 DEPO YÖNETİMİ")
-    c1, c2, c3 = st.columns(3)
+    c1, c2, c3, c4 = st.columns(4)
     isim = c1.text_input("MALZEME ADI").upper()
     miktar = c2.number_input("MİKTAR", format="%.3f")
-    fiyat = c3.number_input("BİRİM FİYAT (₺)")
+    birim = c3.text_input("BİRİM (kg/gr/ad)")
+    fiyat = c4.number_input("BİRİM FİYAT (₺)")
     if st.button("KAYDET"):
-        st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM FİYAT": fiyat}
+        st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim, "FİYAT": fiyat}
         verileri_kaydet(st.session_state.data); st.rerun()
     if st.session_state.data.get("DEPO"): st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
 
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ YENİ REÇETE TANIMLA")
     urun = st.text_input("ÜRÜN ADI").upper()
-    col_m, col_k = st.columns([3, 1])
-    m_ad = col_m.text_input("Hammadde Adı")
-    m_mik = col_k.number_input("Miktar", format="%.4f")
+    c_ad, c_mik, c_bir = st.columns([2, 1, 1])
+    m_ad = c_ad.text_input("Hammadde Adı")
+    m_mik = c_mik.number_input("Miktar", format="%.4f")
+    m_bir = c_bir.text_input("Birim (kg/gr)")
     
     if st.button("EKLE"):
         if urun and m_ad:
             if urun not in st.session_state.data["RECETELER"]: st.session_state.data["RECETELER"][urun] = {}
-            st.session_state.data["RECETELER"][urun][m_ad.upper()] = m_mik
+            # Artık sözlükte sadece miktar değil, birim de saklanıyor
+            st.session_state.data["RECETELER"][urun][m_ad.upper()] = {"MİKTAR": m_mik, "BİRİM": m_bir}
             verileri_kaydet(st.session_state.data); st.rerun()
 
 elif menu == "📋 MEVCUT REÇETELER":
@@ -63,25 +66,26 @@ elif menu == "📋 MEVCUT REÇETELER":
     
     if secilen:
         st.subheader(f"{secilen} Detayları")
-        malzemeler = st.session_state.data["RECETELER"][secilen]
-        for mad, mik in malzemeler.items():
-            c1, c2, c3 = st.columns([3, 1, 1])
-            c1.write(f"**{mad}**: {mik}")
+        for mad, info in st.session_state.data["RECETELER"][secilen].items():
+            c1, c2, c3 = st.columns([3, 2, 1])
+            c1.write(f"**{mad}**")
+            c2.write(f"{info['MİKTAR']} {info['BİRİM']}")
             if c3.button("✏️", key=f"edit_{mad}"):
-                st.session_state.duzenlenen = (secilen, mad, mik)
+                st.session_state.duzenlenen = (secilen, mad, info)
                 st.rerun()
 
-        # Düzenleme paneli (Aktifse görünür)
         if 'duzenlenen' in st.session_state:
-            u, m, eskimik = st.session_state.duzenlenen
-            st.warning(f"{u} içindeki {m} maddesini düzenliyorsunuz:")
-            yeni_mik = st.number_input("Yeni Miktar", value=eskimik)
+            u, m, info = st.session_state.duzenlenen
+            st.warning(f"{m} maddesini düzenliyorsunuz:")
+            yeni_mik = st.number_input("Yeni Miktar", value=float(info['MİKTAR']))
+            yeni_bir = st.text_input("Yeni Birim", value=info['BİRİM'])
             if st.button("GÜNCELLE"):
-                st.session_state.data["RECETELER"][u][m] = yeni_mik
+                st.session_state.data["RECETELER"][u][m] = {"MİKTAR": yeni_mik, "BİRİM": yeni_bir}
                 verileri_kaydet(st.session_state.data)
                 del st.session_state.duzenlenen
                 st.rerun()
 
+# --- SİPARİŞ VE DİĞERLERİ AYNI KALDI ---
 elif menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
     mus = st.text_input("MÜŞTERİ ADI").upper()
