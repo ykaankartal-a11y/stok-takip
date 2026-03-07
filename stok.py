@@ -6,6 +6,7 @@ from datetime import datetime
 
 # --- VERİ YÖNETİMİ ---
 VERI_DOSYASI = "stok_verileri.json"
+BIRIM_LISTESI = ["KG", "GR", "ADET", "LİTRE", "METRE", "PAKET"]
 
 def verileri_yukle():
     default = {"DEPO": {}, "RECETELER": {}, "SIPARISLER": [], "ARSIV": []}
@@ -37,7 +38,7 @@ if menu == "📦 DEPO":
     c1, c2, c3, c4 = st.columns(4)
     isim = c1.text_input("MALZEME ADI").upper()
     miktar = c2.number_input("MİKTAR", format="%.3f")
-    birim = c3.text_input("BİRİM (kg/gr/ad)")
+    birim = c3.selectbox("BİRİM", BIRIM_LISTESI)
     fiyat = c4.number_input("BİRİM FİYAT (₺)")
     if st.button("KAYDET"):
         st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim, "FİYAT": fiyat}
@@ -50,22 +51,19 @@ elif menu == "⚙️ REÇETE TANIMLA":
     c_ad, c_mik, c_bir = st.columns([2, 1, 1])
     m_ad = c_ad.text_input("Hammadde Adı")
     m_mik = c_mik.number_input("Miktar", format="%.4f")
-    m_bir = c_bir.text_input("Birim (kg/gr)")
+    m_bir = c_bir.selectbox("Birim", BIRIM_LISTESI)
     
     if st.button("EKLE"):
         if urun and m_ad:
             if urun not in st.session_state.data["RECETELER"]: st.session_state.data["RECETELER"][urun] = {}
-            # Artık sözlükte sadece miktar değil, birim de saklanıyor
             st.session_state.data["RECETELER"][urun][m_ad.upper()] = {"MİKTAR": m_mik, "BİRİM": m_bir}
             verileri_kaydet(st.session_state.data); st.rerun()
 
 elif menu == "📋 MEVCUT REÇETELER":
     st.header("📋 MEVCUT REÇETELER")
-    urunler = list(st.session_state.data.get("RECETELER", {}).keys())
-    secilen = st.selectbox("ÜRÜN SEÇİN", urunler)
+    secilen = st.selectbox("ÜRÜN SEÇİN", list(st.session_state.data.get("RECETELER", {}).keys()))
     
     if secilen:
-        st.subheader(f"{secilen} Detayları")
         for mad, info in st.session_state.data["RECETELER"][secilen].items():
             c1, c2, c3 = st.columns([3, 2, 1])
             c1.write(f"**{mad}**")
@@ -78,14 +76,14 @@ elif menu == "📋 MEVCUT REÇETELER":
             u, m, info = st.session_state.duzenlenen
             st.warning(f"{m} maddesini düzenliyorsunuz:")
             yeni_mik = st.number_input("Yeni Miktar", value=float(info['MİKTAR']))
-            yeni_bir = st.text_input("Yeni Birim", value=info['BİRİM'])
+            yeni_bir = st.selectbox("Yeni Birim", BIRIM_LISTESI, index=BIRIM_LISTESI.index(info['BİRİM']))
             if st.button("GÜNCELLE"):
                 st.session_state.data["RECETELER"][u][m] = {"MİKTAR": yeni_mik, "BİRİM": yeni_bir}
                 verileri_kaydet(st.session_state.data)
                 del st.session_state.duzenlenen
                 st.rerun()
 
-# --- SİPARİŞ VE DİĞERLERİ AYNI KALDI ---
+# --- DİĞER MODÜLLER (SİPARİŞLER AYNI) ---
 elif menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
     mus = st.text_input("MÜŞTERİ ADI").upper()
