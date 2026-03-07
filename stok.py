@@ -28,21 +28,19 @@ if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
 if 'page' not in st.session_state: st.session_state.page = 1
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
-
 menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "⚙️ REÇETE TANIMLA", "📋 MEVCUT REÇETELER", "📦 DEPO", "📊 ARŞİV"])
 
 # --- MODÜLLER ---
-
 if menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
-    col1, col2 = st.columns(2)
-    mus = col1.text_input("MÜŞTERİ ADI").upper()
+    c1, c2 = st.columns(2)
+    mus = c1.text_input("MÜŞTERİ ADI").upper()
     urunler = list(st.session_state.data["RECETELER"].keys())
-    uru = col2.selectbox("ÜRÜN", urunler) if urunler else None
-    col3, col4, col5 = st.columns(3)
-    adet = col3.number_input("ADET", min_value=1, step=1)
-    fiyat = col4.number_input("FİYAT (₺)", min_value=0.0, format="%.2f")
-    termin = col5.date_input("TERMİN")
+    uru = c2.selectbox("ÜRÜN", urunler) if urunler else None
+    c3, c4, c5 = st.columns(3)
+    adet = c3.number_input("ADET", min_value=1, step=1)
+    fiyat = c4.number_input("FİYAT (₺)", min_value=0.0, format="%.2f")
+    termin = c5.date_input("TERMİN")
     if st.button("SİPARİŞİ ONAYLA") and uru:
         st.session_state.data["SIPARIS_SAYAC"] += 1
         st.session_state.data["SIPARISLER"].append({"NO": st.session_state.data["SIPARIS_SAYAC"], "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "FİYAT": fiyat, "TERMİN": str(termin), "ÜRETİLEN": 0})
@@ -54,7 +52,7 @@ elif menu == "📋 AKTİF SİPARİŞLER":
     else:
         for i, s in enumerate(st.session_state.data["SIPARISLER"]):
             with st.container(border=True):
-                st.write(f"**No:** {s['NO']} | **Ürün:** {s['ÜRÜN']} | **Adet:** {s['ADET']} | **Üretilen:** {s.get('ÜRETİLEN', 0)}")
+                st.write(f"**No:** {s['NO']} | **Ürün:** {s['ÜRÜN']} | **Adet:** {s['ADET']} | **Fiyat:** {s['FİYAT']}₺ | **Termin:** {s['TERMİN']}")
                 c1, c2 = st.columns([2, 1])
                 miktar = c1.number_input(f"Üretim Miktarı ({s['NO']})", min_value=1, step=1, key=f"uretim_{i}")
                 if c2.button("🚀 ÜRETİMİ KAYDET", key=f"btn_{i}"):
@@ -99,9 +97,11 @@ elif menu == "📋 MEVCUT REÇETELER":
         if st.button("✅ GÜNCELLE"): st.session_state.data["RECETELER"][secilen][mad]["MİKTAR"] = y_mik; verileri_kaydet(st.session_state.data); st.rerun()
 
 elif menu == "📦 DEPO":
-    st.header("📦 DEPO")
-    isim, miktar = st.text_input("MALZEME").upper(), st.number_input("MİKTAR", format="%.3f")
-    if st.button("KAYDET"): st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar}; verileri_kaydet(st.session_state.data); st.rerun()
+    st.header("📦 DEPO YÖNETİMİ")
+    c1, c2, c3 = st.columns(3)
+    isim, miktar = c1.text_input("MALZEME").upper(), c2.number_input("MİKTAR", format="%.3f")
+    birim = c3.selectbox("BİRİM", BIRIM_LISTESI)
+    if st.button("KAYDET"): st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim}; verileri_kaydet(st.session_state.data); st.rerun()
     if st.session_state.data["DEPO"]: st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
 
 elif menu == "📊 ARŞİV":
