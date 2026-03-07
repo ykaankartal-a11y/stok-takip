@@ -9,7 +9,7 @@ VERI_DOSYASI = "stok_verileri.json"
 BIRIM_LISTESI = ["KG", "GR", "ADET", "LİTRE", "METRE", "PAKET"]
 
 def verileri_yukle():
-    default = {"DEPO": {}, "RECETELER": {}, "SIPARISLER": [], "ARSIV": []}
+    default = {"DEPO": {}, "RECETELER": {}, "SIPARISLER": [], "ARSIV": [], "SIPARIS_SAYAC": 100}
     if os.path.exists(VERI_DOSYASI):
         try:
             with open(VERI_DOSYASI, "r", encoding="utf-8") as f:
@@ -47,10 +47,11 @@ if menu == "🛒 SİPARİŞ AÇ":
     fiyat = c4.number_input("TOPLAM FİYAT (₺)", min_value=0.0)
     termin = c5.date_input("TERMİN TARİHİ")
     if st.button("SİPARİŞİ ONAYLA"):
-        # Her siparişe benzersiz bir ID (zaman damgası) veriyoruz
-        siparis_id = datetime.now().strftime("%Y%m%d%H%M%S")
+        st.session_state.data["SIPARIS_SAYAC"] += 1
+        siparis_no = st.session_state.data["SIPARIS_SAYAC"]
         st.session_state.data["SIPARISLER"].append({
-            "ID": siparis_id, 
+            "NO": siparis_no,
+            "ID": datetime.now().strftime("%Y%m%d%H%M%S"), 
             "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, 
             "FİYAT": fiyat, "TERMİN": str(termin)
         })
@@ -58,23 +59,17 @@ if menu == "🛒 SİPARİŞ AÇ":
 
 elif menu == "📋 AKTİF SİPARİŞLER":
     st.header("📋 AKTİF SİPARİŞLER")
-    siparisler = st.session_state.data.get("SIPARISLER", [])
-    
-    if not siparisler:
-        st.info("Aktif sipariş yok.")
-    else:
-        for s in siparisler:
-            with st.expander(f"{s['MÜŞTERİ']} - {s['ÜRÜN']} (Termin: {s['TERMİN']})"):
-                kapatma_notu = st.text_input(f"Kapatma Notu", key=f"not_{s['ID']}")
-                if st.button("✅ KAPAT VE ARŞİVLE", key=f"btn_{s['ID']}"):
-                    s["KAPATMA_NOTU"] = kapatma_notu
-                    s["KAPATILMA_TARİHİ"] = str(datetime.now())
-                    # İndeks yerine ID ile bulup arşivle
-                    st.session_state.data["ARSIV"].append(s)
-                    st.session_state.data["SIPARISLER"] = [x for x in st.session_state.data["SIPARISLER"] if x["ID"] != s["ID"]]
-                    verileri_kaydet(st.session_state.data); st.rerun()
+    for s in st.session_state.data.get("SIPARISLER", []):
+        s_id = s.get('ID', 'NO_ID')
+        with st.expander(f"Sipariş No: {s.get('NO', '---')} | {s['MÜŞTERİ']} - {s['ÜRÜN']}"):
+            kapatma_notu = st.text_input(f"Kapatma Notu", key=f"not_{s_id}")
+            if st.button("✅ KAPAT VE ARŞİVLE", key=f"btn_{s_id}"):
+                s["KAPATMA_NOTU"] = kapatma_notu
+                s["KAPATILMA_TARİHİ"] = str(datetime.now())
+                st.session_state.data["ARSIV"].append(s)
+                st.session_state.data["SIPARISLER"] = [x for x in st.session_state.data["SIPARISLER"] if x.get('ID') != s_id]
+                verileri_kaydet(st.session_state.data); st.rerun()
 
-# [Geri kalan modüller (REÇETE, DEPO, ARŞİV) aynı yapıda kalmıştır]
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ YENİ REÇETE TANIMLA")
     urun = st.text_input("ÜRÜN ADI").upper()
