@@ -9,11 +9,13 @@ VERI_DOSYASI = "stok_verileri.json"
 BIRIM_LISTESI = ["KG", "GR", "ADET", "LİTRE", "METRE", "PAKET"]
 
 def verileri_yukle():
+    # Sayacı burada default olarak tanımlıyoruz
     default = {"DEPO": {}, "RECETELER": {}, "SIPARISLER": [], "ARSIV": [], "SIPARIS_SAYAC": 100}
     if os.path.exists(VERI_DOSYASI):
         try:
             with open(VERI_DOSYASI, "r", encoding="utf-8") as f:
                 data = json.load(f)
+                # Eksik anahtarları tamamla
                 for k in default.keys():
                     if k not in data: data[k] = default[k]
                 return data
@@ -24,8 +26,10 @@ def verileri_kaydet(veri):
     with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
-if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
-if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
+if 'data' not in st.session_state: 
+    st.session_state.data = verileri_yukle()
+if 'temp_liste' not in st.session_state: 
+    st.session_state.temp_liste = []
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 
@@ -45,19 +49,26 @@ if menu == "🛒 SİPARİŞ AÇ":
     adet = c3.number_input("ADET", min_value=1, step=1)
     fiyat = c4.number_input("TOPLAM FİYAT (₺)", min_value=0.0)
     termin = c5.date_input("TERMİN TARİHİ")
+    
     if st.button("SİPARİŞİ ONAYLA"):
+        # Sayacın varlığını kontrol et ve güvenli artır
+        if "SIPARIS_SAYAC" not in st.session_state.data:
+            st.session_state.data["SIPARIS_SAYAC"] = 100
         st.session_state.data["SIPARIS_SAYAC"] += 1
+        
         st.session_state.data["SIPARISLER"].append({
             "NO": st.session_state.data["SIPARIS_SAYAC"],
             "ID": datetime.now().strftime("%Y%m%d%H%M%S%f"), 
             "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, 
             "FİYAT": fiyat, "TERMİN": str(termin)
         })
-        verileri_kaydet(st.session_state.data); st.rerun()
+        verileri_kaydet(st.session_state.data)
+        st.success("Sipariş başarıyla oluşturuldu!")
+        st.rerun()
 
 elif menu == "📋 AKTİF SİPARİŞLER":
     st.header("📋 AKTİF SİPARİŞLER")
-    if not st.session_state.data["SIPARISLER"]:
+    if not st.session_state.data.get("SIPARISLER"):
         st.info("Aktif sipariş yok.")
     else:
         for i, s in enumerate(st.session_state.data["SIPARISLER"]):
@@ -68,7 +79,6 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                     s["KAPATILMA_TARİHİ"] = str(datetime.now())
                     st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                     verileri_kaydet(st.session_state.data)
-                    st.session_state.data = verileri_yukle()
                     st.rerun()
 
 elif menu == "⚙️ REÇETE TANIMLA":
