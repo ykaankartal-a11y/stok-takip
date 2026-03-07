@@ -68,8 +68,8 @@ def stok_analizi(urun, hedef_miktar):
         eksik = max(0, gerekli - mevcut)
         if eksik > 0: tamam_mi = False
         analiz_listesi.append({
-            "Malzeme": malz, "Gereken": format_sayi(gerekli, detay['birim']),
-            "Mevcut": format_sayi(mevcut, detay['birim']), "Eksik": format_sayi(eksik, detay['birim']), "Birim": detay['birim']
+            "MALZEME": malz, "GEREKEN": format_sayi(gerekli, detay['birim']),
+            "MEVCUT": format_sayi(mevcut, detay['birim']), "EKSİK": format_sayi(eksik, detay['birim']), "BİRİM": detay['birim']
         })
     return tamam_mi, analiz_listesi
 
@@ -148,7 +148,7 @@ elif menu == "🛠️ ÜRETİM KAYDI":
                     recete = st.session_state.data["urun_agaclari"].get(sec_sip['urun'], {})
                     for m, d in recete.items():
                         st.session_state.data["hammadde_depo"][m]["miktar"] -= (d["miktar"] * u_mik)
-                    st.session_state.data["mamul_depo"].append({"tarih": str(datetime.date.today()), "kod": sec_sip['kod'], "urun": sec_sip['urun'], "miktar": int(u_mik)})
+                    st.session_state.data["mamul_depo"].append({"tarih": str(datetime.date.today()), "kod": sec_sip['kod'], "musteri": sec_sip['musteri'], "urun": sec_sip['urun'], "miktar": int(u_mik)})
                     sec_sip["uretilen"] += int(u_mik)
                     verileri_kaydet(st.session_state.data); st.balloons(); st.rerun()
 
@@ -160,7 +160,7 @@ elif menu == "⚙️ ÜRÜN REÇETELERİ":
         for i in range(st.session_state.rows):
             c1, c2, c3 = st.columns([3, 2, 2])
             with c1: st.text_input(f"Hammadde {i+1}", key=f"h_ad_{i}", placeholder="Hammadde Adı").upper()
-            with c2: st.number_input("Miktar", min_value=0.0, value=0.0, format="%.2f", key=f"h_mik_{i}", help="Küsuratlı ise nokta kullanın.")
+            with c2: st.number_input("Miktar", min_value=0.0, value=0.0, format="%.2f", key=f"h_mik_{i}")
             with c3: st.selectbox("Birim", ["ADET", "KG", "METRE", "GRAM"], key=f"h_birim_{i}")
         
         c_alt1, c_alt2 = st.columns([1, 4])
@@ -210,8 +210,29 @@ elif menu == "📦 DEPO DURUMU":
                     st.session_state.data["hammadde_depo"][s_m]["miktar"] += s_mik
                     verileri_kaydet(st.session_state.data); st.rerun()
     with m_tab:
-        st.dataframe(pd.DataFrame(st.session_state.data.get("mamul_depo", [])), use_container_width=True)
+        mamul_verisi = st.session_state.data.get("mamul_depo", [])
+        if mamul_verisi:
+            df_m = pd.DataFrame(mamul_verisi)
+            df_m.columns = [c.upper() for c in df_m.columns] # Başlıkları büyüt
+            st.dataframe(df_m, use_container_width=True)
 
 elif menu == "📊 ARŞİV":
     st.header("📊 Arşiv")
-    st.dataframe(pd.DataFrame(st.session_state.data.get("tamamlanan_siparisler", [])), use_container_width=True)
+    arsiv_verisi = st.session_state.data.get("tamamlanan_siparisler", [])
+    if arsiv_verisi:
+        df_a = pd.DataFrame(arsiv_verisi)
+        # Sütun isimlerini Türkçeleştir ve Büyüt
+        sutun_haritasi = {
+            "kod": "SİPARİŞ KODU",
+            "musteri": "MÜŞTERİ ADI",
+            "urun": "ÜRÜN ADI",
+            "miktar": "HEDEF MİKTAR",
+            "uretilen": "ÜRETİLEN MİKTAR",
+            "termin": "TERMİN TARİHİ",
+            "bitis": "KAPANALMA TARİHİ"
+        }
+        df_a = df_a.rename(columns=sutun_haritasi)
+        df_a.columns = [c.upper() for c in df_a.columns] # Her ihtimale karşı hepsini büyüt
+        st.dataframe(df_a, use_container_width=True)
+    else:
+        st.info("Arşivlenmiş sipariş bulunmuyor.")
