@@ -24,7 +24,9 @@ def verileri_kaydet(veri):
     with open(VERI_DOSYASI, "w", encoding="utf-8") as f:
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
+# Session state başlatıcıları
 if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
+if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 
@@ -63,21 +65,35 @@ elif menu == "📋 AKTİF SİPARİŞLER":
             st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
             verileri_kaydet(st.session_state.data); st.rerun()
 
-# 3. REÇETE TANIMLA
+# 3. REÇETE TANIMLA (DÜZELTİLDİ)
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ YENİ REÇETE TANIMLA")
     urun = st.text_input("ÜRÜN ADI").upper()
-    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-    h_ad = c1.text_input("Hammadde Adı")
-    h_mik = c2.number_input("Miktar", format="%.4f")
-    h_bir = c3.selectbox("Birim", BIRIM_LISTESI)
-    if c4.button("➕ EKLE"):
-        if urun and h_ad:
-            if urun not in st.session_state.data["RECETELER"]: st.session_state.data["RECETELER"][urun] = {}
-            st.session_state.data["RECETELER"][urun][h_ad.upper()] = {"MİKTAR": h_mik, "BİRİM": h_bir}
-            verileri_kaydet(st.session_state.data); st.rerun()
+    
+    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+    h_ad = col1.text_input("Hammadde Adı")
+    h_mik = col2.number_input("Miktar", format="%.4f")
+    h_bir = col3.selectbox("Birim", BIRIM_LISTESI)
+    
+    if col4.button("➕ LİSTEYE EKLE"):
+        if h_ad:
+            st.session_state.temp_liste.append({"Hammadde": h_ad.upper(), "Miktar": h_mik, "Birim": h_bir})
+            st.rerun()
+    
+    if st.session_state.temp_liste:
+        st.table(pd.DataFrame(st.session_state.temp_liste))
+        if st.button("💾 REÇETEYİ KAYDET"):
+            if urun:
+                st.session_state.data["RECETELER"][urun] = {item["Hammadde"]: {"MİKTAR": item["Miktar"], "BİRİM": item["Birim"]} for item in st.session_state.temp_liste}
+                verileri_kaydet(st.session_state.data)
+                st.session_state.temp_liste = []
+                st.success("Reçete kaydedildi!")
+                st.rerun()
+        if st.button("❌ LİSTEYİ SIFIRLA"):
+            st.session_state.temp_liste = []
+            st.rerun()
 
-# 4. MEVCUT REÇETELER (DÜZENLEME)
+# 4. MEVCUT REÇETELER
 elif menu == "📋 MEVCUT REÇETELER":
     st.header("📋 MEVCUT REÇETELER")
     secilen = st.selectbox("ÜRÜN SEÇİN", [""] + list(st.session_state.data["RECETELER"].keys()))
