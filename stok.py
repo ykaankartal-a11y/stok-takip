@@ -24,48 +24,55 @@ def verileri_kaydet(veri):
         json.dump(veri, f, ensure_ascii=False, indent=4)
 
 if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
-if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
+if 'satir_sayisi' not in st.session_state: st.session_state.satir_sayisi = 5
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 
 # --- MENÜ ---
-menu = st.sidebar.radio("MENÜ", ["📦 DEPO", "⚙️ REÇETE TANIMLA", "🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "📊 ARŞİV"])
+menu = st.sidebar.radio("MENÜ", ["📦 DEPO", "⚙️ REÇETE TANIMLA VE DÜZENLE", "🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "📊 ARŞİV"])
 
 # --- MODÜLLER ---
 
 if menu == "📦 DEPO":
     st.header("📦 DEPO YÖNETİMİ")
-    col1, col2, col3 = st.columns(3)
-    isim = col1.text_input("MALZEME ADI").upper()
-    miktar = col2.number_input("MİKTAR", format="%.3f")
-    fiyat = col3.number_input("BİRİM FİYAT (₺)")
+    c1, c2, c3 = st.columns(3)
+    isim = c1.text_input("MALZEME ADI").upper()
+    miktar = c2.number_input("MİKTAR", format="%.3f")
+    fiyat = c3.number_input("BİRİM FİYAT (₺)")
     if st.button("KAYDET"):
         st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM FİYAT": fiyat}
         verileri_kaydet(st.session_state.data); st.rerun()
-    if st.session_state.data["DEPO"]:
-        st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
+    if st.session_state.data.get("DEPO"): st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
 
-elif menu == "⚙️ REÇETE TANIMLA":
+elif menu == "⚙️ REÇETE TANIMLA VE DÜZENLE":
     st.header("⚙️ REÇETE EDİTÖRÜ")
-    urun_adi = st.text_input("ÜRÜN ADI").upper()
     
-    c1, c2, c3 = st.columns(3)
-    m_ad = c1.text_input("MALZEME ADI").upper()
-    m_mik = c2.number_input("MİKTAR", format="%.4f")
-    if c3.button("➕ LİSTEYE EKLE"):
-        st.session_state.temp_liste.append({"MALZEME": m_ad, "MİKTAR": m_mik})
-        st.rerun()
+    # 1. BÖLÜM: REÇETE SEÇİMİ VE DÜZENLEME
+    secilen_recete = st.selectbox("DÜZENLEMEK İÇİN BİR ÜRÜN SEÇ", ["YENİ KAYIT"] + list(st.session_state.data.get("RECETELER", {}).keys()))
     
-    if st.session_state.temp_liste:
-        st.table(pd.DataFrame(st.session_state.temp_liste))
-        if st.button("💾 REÇETEYİ KAYDET"):
-            # Listeyi sözlüğe çevirip kaydet
-            recete_dict = {item["MALZEME"]: item["MİKTAR"] for item in st.session_state.temp_liste}
-            st.session_state.data["RECETELER"][urun_adi] = recete_dict
-            st.session_state.temp_liste = []
-            verileri_kaydet(st.session_state.data); st.rerun()
-        if st.button("❌ LİSTEYİ SIFIRLA"):
-            st.session_state.temp_liste = []; st.rerun()
+    urun = st.text_input("ÜRÜN ADI", value=secilen_recete if secilen_recete != "YENİ KAYIT" else "").upper()
+    
+    # Mevcut reçeteyi tablo olarak göster
+    if secilen_recete != "YENİ KAYIT":
+        st.write(f"**{secilen_recete}** reçetesini düzenliyorsunuz:")
+        st.table(pd.DataFrame(st.session_state.data["RECETELER"][secilen_recete].items(), columns=["MALZEME", "MİKTAR"]))
+
+    # 2. BÖLÜM: DİNAMİK GİRİŞ
+    st.write("---")
+    recete_temp = {}
+    for i in range(st.session_state.satir_sayisi):
+        c1, c2 = st.columns([3, 1])
+        h_ad = c1.text_input(f"Hammadde {i+1}", key=f"h_{i}").upper()
+        h_mik = c2.number_input("Miktar", key=f"m_{i}", format="%.4f")
+        if h_ad: recete_temp[h_ad] = h_mik
+    
+    col_a, col_b = st.columns(2)
+    if col_a.button("➕ Satır Ekle"): st.session_state.satir_sayisi += 1; st.rerun()
+    if col_b.button("💾 REÇETEYİ KAYDET / GÜNCELLE", type="primary"):
+        if urun and recete_temp:
+            st.session_state.data["RECETELER"][urun] = recete_temp
+            verileri_kaydet(st.session_state.data)
+            st.success("İşlem Başarılı!"); st.rerun()
 
 elif menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
@@ -88,6 +95,5 @@ elif menu == "📋 AKTİF SİPARİŞLER":
 
 elif menu == "📊 ARŞİV":
     st.header("📊 ARŞİV")
-    arsiv = st.session_state.data.get("ARSIV", [])
-    if arsiv: st.table(pd.DataFrame(arsiv))
+    if st.session_state.data.get("ARSIV"): st.table(pd.DataFrame(st.session_state.data["ARSIV"]))
     else: st.info("Arşiv henüz boş.")
