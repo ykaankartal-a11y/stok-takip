@@ -52,15 +52,20 @@ if menu == "🛒 SİPARİŞ AÇ":
 
 elif menu == "📋 AKTİF SİPARİŞLER":
     st.header("📋 AKTİF SİPARİŞLER")
-    if not st.session_state.data.get("SIPARISLER"):
+    siparisler = st.session_state.data.get("SIPARISLER", [])
+    if not siparisler:
         st.info("Aktif sipariş yok.")
     else:
-        df = pd.DataFrame(st.session_state.data["SIPARISLER"])
-        st.dataframe(df, use_container_width=True)
-        secilen_idx = st.selectbox("Arşivlenecek Sipariş", range(len(st.session_state.data["SIPARISLER"])), format_func=lambda x: f"{st.session_state.data['SIPARISLER'][x]['MÜŞTERİ']} - {st.session_state.data['SIPARISLER'][x]['ÜRÜN']}")
-        if st.button("✅ KAPAT VE ARŞİVLE"):
-            st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(secilen_idx))
-            verileri_kaydet(st.session_state.data); st.rerun()
+        # İndeks hatasını önlemek için döngüyle her birine özel buton
+        for i, s in enumerate(siparisler):
+            with st.expander(f"{s['MÜŞTERİ']} - {s['ÜRÜN']} (Termin: {s['TERMİN']})"):
+                st.write(f"**Adet:** {s['ADET']} | **Fiyat:** {s['FİYAT']} ₺")
+                kapatma_notu = st.text_input(f"Kapatma Notu (Örn: Teslim edildi)", key=f"not_{i}")
+                if st.button("✅ KAPAT VE ARŞİVLE", key=f"btn_{i}"):
+                    s["KAPATMA_NOTU"] = kapatma_notu
+                    s["KAPATILMA_TARİHİ"] = str(datetime.now().date())
+                    st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
+                    verileri_kaydet(st.session_state.data); st.rerun()
 
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ YENİ REÇETE TANIMLA")
@@ -86,7 +91,7 @@ elif menu == "📋 MEVCUT REÇETELER":
         st.table(df)
         mad = st.selectbox("Düzenle", df["Hammadde"].tolist())
         y_mik = st.number_input("Yeni Miktar", value=float(df.loc[df["Hammadde"] == mad, "Miktar"].values[0]))
-        y_bir = st.selectbox("Yeni Birim", BIRIM_LISTESI)
+        y_bir = st.selectbox("Yeni Birim", BIRIM_LISTESI, index=BIRIM_LISTESI.index(df.loc[df["Hammadde"] == mad, "Birim"].values[0]))
         if st.button("✅ GÜNCELLE"):
             st.session_state.data["RECETELER"][secilen][mad] = {"MİKTAR": y_mik, "BİRİM": y_bir}
             verileri_kaydet(st.session_state.data); st.rerun()
