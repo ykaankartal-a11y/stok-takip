@@ -73,38 +73,29 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                     st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                     verileri_kaydet(st.session_state.data); st.rerun()
 
-elif menu == "⚙️ REÇETE TANIMLA":
-    st.header("⚙️ REÇETE TANIMLA")
-    urun = st.text_input("ÜRÜN ADI").upper()
-    h_ad, h_mik = st.text_input("Hammadde Adı"), st.number_input("Miktar", format="%.4f")
-    h_bir = st.selectbox("Birim", BIRIM_LISTESI)
-    if st.button("➕ LİSTEYE EKLE"): st.session_state.temp_liste.append({"Hammadde": h_ad.upper(), "Miktar": h_mik, "Birim": h_bir})
-    if st.session_state.temp_liste:
-        st.table(pd.DataFrame(st.session_state.temp_liste))
-        if st.button("💾 REÇETEYİ KAYDET"):
-            st.session_state.data["RECETELER"][urun] = {i["Hammadde"]: {"MİKTAR": i["Miktar"], "BİRİM": i["Birim"]} for i in st.session_state.temp_liste}
-            verileri_kaydet(st.session_state.data); st.session_state.temp_liste = []; st.rerun()
-
-elif menu == "📋 MEVCUT REÇETELER":
-    st.header("📋 MEVCUT REÇETELER")
-    secilen = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
-    if secilen:
-        st.table(pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T)
-        if st.button("❌ SİL"): del st.session_state.data["RECETELER"][secilen]; verileri_kaydet(st.session_state.data); st.rerun()
-
-elif menu == "📦 DEPO":
-    st.header("📦 DEPO YÖNETİMİ")
-    isim, miktar = st.text_input("MALZEME").upper(), st.number_input("MİKTAR", format="%.3f")
-    if st.button("KAYDET"): st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar}; verileri_kaydet(st.session_state.data); st.rerun()
-    if st.session_state.data["DEPO"]: st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
-
 elif menu == "📊 ARŞİV":
     st.header("📊 ARŞİV")
-    arama = st.text_input("🔍 ARA (Müşteri veya Ürün)").upper()
+    
+    # 1. Arama Bloğu (Sipariş Kodu, Müşteri, Ürün)
+    arama = st.text_input("🔍 ARA (Sipariş No, Müşteri veya Ürün)").upper()
     df = pd.DataFrame(st.session_state.data["ARSIV"])
+    
     if not df.empty:
-        if arama: df = df[df.apply(lambda row: arama in str(row['MÜŞTERİ']) or arama in str(row['ÜRÜN']), axis=1)]
-        sayfa_basina = 10
-        sayfa = st.number_input("Sayfa", 1, max(1, (len(df)-1)//sayfa_basina + 1), 1)
-        st.table(df.iloc[(sayfa-1)*sayfa_basina : sayfa*sayfa_basina])
+        # Filtreleme
+        if arama:
+            df = df[df.apply(lambda row: arama in str(row['NO']) or arama in str(row['MÜŞTERİ']) or arama in str(row['ÜRÜN']), axis=1)]
+        
+        # 2. Sayfalandırma (Butonlu)
+        s_bas = 10
+        toplam_sayfa = (len(df) - 1) // s_bas + 1
+        
+        # Sayfa durumu yönetimi
+        if 'page' not in st.session_state: st.session_state.page = 1
+        
+        # Buton satırı
+        cols = st.columns(min(toplam_sayfa, 10))
+        for i in range(toplam_sayfa):
+            if cols[i].button(str(i+1)): st.session_state.page = i+1
+        
+        st.table(df.iloc[(st.session_state.page-1)*s_bas : st.session_state.page*s_bas])
     else: st.info("Arşiv boş.")
