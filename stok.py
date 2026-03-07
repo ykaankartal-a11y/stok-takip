@@ -47,26 +47,34 @@ if menu == "🛒 SİPARİŞ AÇ":
     fiyat = c4.number_input("TOPLAM FİYAT (₺)", min_value=0.0)
     termin = c5.date_input("TERMİN TARİHİ")
     if st.button("SİPARİŞİ ONAYLA"):
-        st.session_state.data["SIPARISLER"].append({"MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "FİYAT": fiyat, "TERMİN": str(termin)})
+        # Her siparişe benzersiz bir ID (zaman damgası) veriyoruz
+        siparis_id = datetime.now().strftime("%Y%m%d%H%M%S")
+        st.session_state.data["SIPARISLER"].append({
+            "ID": siparis_id, 
+            "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, 
+            "FİYAT": fiyat, "TERMİN": str(termin)
+        })
         verileri_kaydet(st.session_state.data); st.rerun()
 
 elif menu == "📋 AKTİF SİPARİŞLER":
     st.header("📋 AKTİF SİPARİŞLER")
     siparisler = st.session_state.data.get("SIPARISLER", [])
+    
     if not siparisler:
         st.info("Aktif sipariş yok.")
     else:
-        # İndeks hatasını önlemek için döngüyle her birine özel buton
-        for i, s in enumerate(siparisler):
+        for s in siparisler:
             with st.expander(f"{s['MÜŞTERİ']} - {s['ÜRÜN']} (Termin: {s['TERMİN']})"):
-                st.write(f"**Adet:** {s['ADET']} | **Fiyat:** {s['FİYAT']} ₺")
-                kapatma_notu = st.text_input(f"Kapatma Notu (Örn: Teslim edildi)", key=f"not_{i}")
-                if st.button("✅ KAPAT VE ARŞİVLE", key=f"btn_{i}"):
+                kapatma_notu = st.text_input(f"Kapatma Notu", key=f"not_{s['ID']}")
+                if st.button("✅ KAPAT VE ARŞİVLE", key=f"btn_{s['ID']}"):
                     s["KAPATMA_NOTU"] = kapatma_notu
-                    s["KAPATILMA_TARİHİ"] = str(datetime.now().date())
-                    st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
+                    s["KAPATILMA_TARİHİ"] = str(datetime.now())
+                    # İndeks yerine ID ile bulup arşivle
+                    st.session_state.data["ARSIV"].append(s)
+                    st.session_state.data["SIPARISLER"] = [x for x in st.session_state.data["SIPARISLER"] if x["ID"] != s["ID"]]
                     verileri_kaydet(st.session_state.data); st.rerun()
 
+# [Geri kalan modüller (REÇETE, DEPO, ARŞİV) aynı yapıda kalmıştır]
 elif menu == "⚙️ REÇETE TANIMLA":
     st.header("⚙️ YENİ REÇETE TANIMLA")
     urun = st.text_input("ÜRÜN ADI").upper()
