@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import os
 import pandas as pd
-import math
 
 # --- AYARLAR ---
 VERI_DOSYASI = "stok_verileri.json"
@@ -33,9 +32,8 @@ if menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ AÇ")
     mus = st.text_input("MÜŞTERİ ADI").upper()
     uru = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
-    c1, c2 = st.columns(2)
-    adet = c1.number_input("ADET", min_value=1)
-    termin = c2.date_input("TERMİN")
+    adet = st.number_input("ADET", min_value=1)
+    termin = st.date_input("TERMİN")
     fiyat = st.number_input("SATIŞ FİYATI", format="%.2f")
     if st.button("SİPARİŞİ ONAYLA"):
         st.session_state.data["SIPARIS_SAYAC"] += 1
@@ -53,17 +51,17 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                 recete = st.session_state.data["RECETELER"].get(s['ÜRÜN'], {})
                 for mat, info in recete.items():
                     s["DETAY"][mat] = s.get("DETAY", {}).get(mat, 0) + (miktar * info.get("MİKTAR", 0) * info.get("MALİYET", 0))
-                verileri_kaydet(st.session_state.data); st.success("Eklendi!"); st.rerun()
+                verileri_kaydet(st.session_state.data); st.success("Üretim eklendi!"); st.rerun()
             if st.button("✅ KAPAT VE ARŞİVLE", key=f"k_{i}"):
                 s["KAPATMA_NOTU"] = not_val
                 st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                 verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 3. REÇETE TANIMLA ---
+# --- 3. REÇETE & 4. MEVCUT REÇETELER ---
 elif menu == "⚙️ REÇETE TANIMLA":
     urun = st.text_input("ÜRÜN ADI").upper()
     c1, c2, c3, c4 = st.columns(4)
-    h_ad = c1.text_input("Malzeme").upper(); h_mik = c2.number_input("Mik", 0.0)
+    h_ad = c1.text_input("Malzeme Adı").upper(); h_mik = c2.number_input("Miktar", 0.0)
     h_bir = c3.selectbox("Birim", BIRIM_LISTESI); h_fiy = c4.number_input("Maliyet", 0.0)
     if st.button("➕ EKLE"):
         if urun not in st.session_state.data["RECETELER"]: st.session_state.data["RECETELER"][urun] = {}
@@ -72,7 +70,6 @@ elif menu == "⚙️ REÇETE TANIMLA":
     isc = st.number_input("İŞÇİLİK BEDELİ (TL)", 0.0)
     if st.button("➕ İŞÇİLİK EKLE"): st.session_state.data["RECETELER"][urun]["İŞÇİLİK"] = {"MİKTAR": 1, "BİRİM": "İŞÇİLİK(TL)", "MALİYET": isc}; verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 4. MEVCUT REÇETELER ---
 elif menu == "📋 MEVCUT REÇETELER":
     secilen = st.selectbox("ÜRÜN SEÇİN", [""] + list(st.session_state.data["RECETELER"].keys()))
     if secilen:
@@ -83,23 +80,31 @@ elif menu == "📋 MEVCUT REÇETELER":
             f = cols[2].number_input("Fiyat", value=float(info.get('MALİYET', 0)), key=f"f_{mat}")
             if cols[4].button("💾 Kaydet", key=f"u_{mat}"): st.session_state.data["RECETELER"][secilen][mat] = {"MİKTAR": m, "BİRİM": info['BİRİM'], "MALİYET": f}; verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 5. DEPO ---
+# --- 5. DEPO (Aramalı ve Düzenlemeli) ---
 elif menu == "📦 DEPO":
     c1, c2, c3, c4 = st.columns(4)
     isim = c1.text_input("MALZEME", value=st.session_state.edit_malzeme or "")
     mik = c2.number_input("MİKTAR", value=float(st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("MİKTAR", 0)))
     if c4.button("💾 KAYDET"): st.session_state.data["DEPO"][isim.upper()] = {"MİKTAR": mik, "BİRİM": "ADET"}; verileri_kaydet(st.session_state.data); st.session_state.edit_malzeme=None; st.rerun()
-    for k, v in list(st.session_state.data["DEPO"].items())[st.session_state.page_depo*SAYFA_BASI : (st.session_state.page_depo+1)*SAYFA_BASI]:
+    
+    st.write("---")
+    arama = st.text_input("🔍 MALZEME ARA").upper()
+    filt = {k:v for k,v in st.session_state.data["DEPO"].items() if arama in k}
+    for k, v in list(filt.items())[st.session_state.page_depo*SAYFA_BASI : (st.session_state.page_depo+1)*SAYFA_BASI]:
         col1, col2 = st.columns([4, 1])
         col1.write(f"**{k}**: {v.get('MİKTAR')} {v.get('BİRİM')}")
         if col2.button("✏️ Düzenle", key=f"e_{k}"): st.session_state.edit_malzeme = k; st.rerun()
-    if st.button("Sonraki Sayfa"): st.session_state.page_depo += 1; st.rerun()
+    c1, c2 = st.columns(2)
+    if c1.button("⬅️ Önceki"): st.session_state.page_depo = max(0, st.session_state.page_depo-1); st.rerun()
+    if c2.button("Sonraki ➡️"): st.session_state.page_depo += 1; st.rerun()
 
-# --- 6. ARŞİV ---
+# --- 6. ARŞİV (Aramalı ve Sayfalamalı) ---
 elif menu == "📊 ARŞİV":
-    arama = st.text_input("🔍 ARA").upper()
-    arsiv = [s for s in st.session_state.data.get("ARSIV", []) if arama in str(s.get('MÜŞTERİ', '')).upper()]
+    arama = st.text_input("🔍 ARA (Müşteri/No)").upper()
+    arsiv = [s for s in st.session_state.data.get("ARSIV", []) if arama in str(s.get('MÜŞTERİ', '')).upper() or arama in str(s.get('NO', ''))]
     for s in arsiv[st.session_state.page_arsiv*SAYFA_BASI : (st.session_state.page_arsiv+1)*SAYFA_BASI]:
         with st.expander(f"No: {s.get('NO')} | {s.get('MÜŞTERİ')}"):
-            st.metric("Maliyet", f"{sum(s.get('DETAY', {}).values()):.2f} ₺")
-    if st.button("Arşiv Sonraki Sayfa"): st.session_state.page_arsiv += 1; st.rerun()
+            st.metric("Toplam Maliyet", f"{sum(s.get('DETAY', {}).values()):.2f} ₺")
+    c1, c2 = st.columns(2)
+    if c1.button("⬅️ Önceki", key="ap"): st.session_state.page_arsiv = max(0, st.session_state.page_arsiv-1); st.rerun()
+    if c2.button("Sonraki ➡️", key="an"): st.session_state.page_arsiv += 1; st.rerun()
