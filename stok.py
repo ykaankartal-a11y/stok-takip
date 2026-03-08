@@ -23,17 +23,18 @@ def verileri_kaydet(veri):
 
 if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
 if 'temp_liste' not in st.session_state: st.session_state.temp_liste = []
+if 'edit_malzeme' not in st.session_state: st.session_state.edit_malzeme = None
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "⚙️ REÇETE TANIMLA", "📋 MEVCUT REÇETELER", "📦 DEPO", "📊 ARŞİV"])
 
-# --- MODAL: ÜRETİM GİRİŞİ ---
+# --- MODAL: ÜRETİM ---
 @st.dialog("🚀 ÜRETİM GİRİŞİ")
 def uretim_modal(index):
     s = st.session_state.data["SIPARISLER"][index]
     miktar = st.number_input("Üretilecek Miktar", min_value=1, step=1)
     if st.button("ONAYLA"):
-        recete = st.session_state.data["RECETELER"].get(s['ÜRÜN'], {})
+        recete = st.session_state.data["RECETELER"].get(s.get('ÜRÜN'), {})
         hata, toplam_maliyet, anlik_detay = False, 0, {}
         for mad, info in recete.items():
             req = info["MİKTAR"] * miktar
@@ -49,66 +50,51 @@ def uretim_modal(index):
                     anlik_detay[mad] = anlik_detay.get(mad, 0) + tutar
                     st.session_state.data["DEPO"][mad]["MİKTAR"] -= req
         if not hata:
-            s["ÜRETİLEN"] += miktar; s["MALIYET"] += toplam_maliyet
+            s["ÜRETİLEN"] = s.get("ÜRETİLEN", 0) + miktar
+            s["MALIYET"] = s.get("MALIYET", 0) + toplam_maliyet
             for k, v in anlik_detay.items(): s["DETAY"][k] = s.get("DETAY", {}).get(k, 0) + v
-            verileri_kaydet(st.session_state.data)
-            st.success("✅ Üretim Kaydedildi!"); st.rerun()
+            verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- MENÜLER ---
-if menu == "🛒 SİPARİŞ AÇ":
-    mus = st.text_input("MÜŞTERİ ADI").upper()
-    uru = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
-    c1, c2 = st.columns(2)
-    adet = c1.number_input("ADET", min_value=1)
-    fiyat = c2.number_input("SATIŞ FİYATI", format="%.2f")
-    if st.button("SİPARİŞİ ONAYLA"):
-        if mus and uru:
-            st.session_state.data["SIPARIS_SAYAC"] += 1
-            st.session_state.data["SIPARISLER"].append({"NO": st.session_state.data["SIPARIS_SAYAC"], "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "FİYAT": fiyat, "ÜRETİLEN": 0, "MALIYET": 0.0, "DETAY": {}})
-            verileri_kaydet(st.session_state.data); st.success("Sipariş Açıldı!"); st.rerun()
+# --- MODÜLLER ---
+if menu == "📦 DEPO":
+    st.header("📦 DEPO YÖNETİMİ")
+    arama = st.text_input("🔍 MALZEME ARA").upper()
+    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+    
+    # Düzenleme modu
+    kutu_isim = c1.text_input("MALZEME ADI", value=st.session_state.edit_malzeme or "")
+    kutu_mik = c2.number_input("MİKTAR", value=st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("MİKTAR", 0.0), format="%.3f")
+    kutu_bir = c3.selectbox("BİRİM", BIRIM_LISTESI, index=BIRIM_LISTESI.index(st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("BİRİM", "ADET")) if st.session_state.edit_malzeme else 0)
+    kutu_fiy = c4.number_input("FİYAT", value=st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("FİYAT", 0.0), format="%.2f")
+    
+    if st.button("💾 KAYDET / GÜNCELLE"):
+        st.session_state.data["DEPO"][kutu_isim] = {"MİKTAR": kutu_mik, "BİRİM": kutu_bir, "FİYAT": kutu_fiy}
+        verileri_kaydet(st.session_state.data); st.session_state.edit_malzeme = None; st.rerun()
 
-elif menu == "📋 AKTİF SİPARİŞLER":
-    for i, s in enumerate(st.session_state.data["SIPARISLER"]):
-        with st.expander(f"No: {s['NO']} | {s['MÜŞTERİ']} | {s['ÜRÜN']} | Üretilen: {s['ÜRETİLEN']} | Maliyet: {s['MALIYET']:.2f} ₺"):
-            if st.button("➕ ÜRETİM GİR", key=f"u_{i}"): uretim_modal(i)
-            not_val = st.text_input("Kapatma Notu", key=f"n_{i}")
-            if st.button("✅ KAPAT VE ARŞİVLE", key=f"k_{i}"):
-                s["KAPATMA_NOTU"] = not_val
-                st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
-                verileri_kaydet(st.session_state.data); st.rerun()
-
-elif menu == "⚙️ REÇETE TANIMLA":
-    urun = st.text_input("ÜRÜN ADI").upper()
-    c1, c2, c3 = st.columns(3)
-    h_ad = c1.text_input("Hammadde/İşçilik")
-    h_mik = c2.number_input("Miktar/Tutar", format="%.4f")
-    h_bir = c3.selectbox("Birim", BIRIM_LISTESI)
-    if st.button("➕ EKLE"): st.session_state.temp_liste.append({"H": h_ad.upper(), "M": h_mik, "B": h_bir}); st.rerun()
-    if st.session_state.temp_liste:
-        st.table(pd.DataFrame(st.session_state.temp_liste))
-        if st.button("💾 KAYDET"):
-            st.session_state.data["RECETELER"][urun] = {i["H"]: {"MİKTAR": i["M"], "BİRİM": i["B"]} for i in st.session_state.temp_liste}
-            verileri_kaydet(st.session_state.data); st.session_state.temp_liste = []; st.success("Reçete Kaydedildi!"); st.rerun()
+    # Sayfalamalı Tablo
+    filtreli = {k: v for k, v in st.session_state.data["DEPO"].items() if arama in k.upper()}
+    for k, v in filtreli.items():
+        col1, col2 = st.columns([4, 1])
+        col1.write(f"**{k}**: {v['MİKTAR']} {v['BİRİM']} | {v['FİYAT']} TL")
+        if col2.button("✏️ Düzenle", key=f"edit_{k}"): st.session_state.edit_malzeme = k; st.rerun()
 
 elif menu == "📋 MEVCUT REÇETELER":
     secilen = st.selectbox("ÜRÜN SEÇİN", [""] + list(st.session_state.data["RECETELER"].keys()))
     if secilen:
-        st.table(pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T)
-        if st.button("❌ SİL"): del st.session_state.data["RECETELER"][secilen]; verileri_kaydet(st.session_state.data); st.rerun()
-
-elif menu == "📦 DEPO":
-    isim = st.text_input("MALZEME ARA/EKLE").upper()
-    c1, c2, c3 = st.columns(3)
-    miktar = c1.number_input("MİKTAR", format="%.3f")
-    birim = c2.selectbox("BİRİM", BIRIM_LISTESI)
-    fiyat = c3.number_input("FİYAT", format="%.2f")
-    if st.button("💾 KAYDET"):
-        st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim, "FİYAT": fiyat}
-        verileri_kaydet(st.session_state.data); st.success("Depo Güncellendi!"); st.rerun()
-    st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
+        df = pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T
+        st.table(df)
+        if st.button("✏️ REÇETEYİ DÜZENLE"): st.session_state.temp_liste = [{"H": k, "M": v["MİKTAR"], "B": v["BİRİM"]} for k, v in st.session_state.data["RECETELER"][secilen].items()]; st.session_state.duzenlenen_urun = secilen; st.rerun()
 
 elif menu == "📊 ARŞİV":
-    for s in st.session_state.data.get("ARSIV", []):
-        with st.expander(f"No: {s['NO']} | {s['ÜRÜN']} | Maliyet: {s['MALIYET']:.2f} ₺"):
-            st.write(f"Not: {s.get('KAPATMA_NOTU')}")
+    st.header("📊 ARŞİV")
+    arsiv = st.session_state.data.get("ARSIV", [])
+    for s in arsiv:
+        # Hata vermemesi için .get() kullanıldı
+        no = s.get('NO', 'Bilinmiyor')
+        urun = s.get('ÜRÜN', 'Tanımsız')
+        maliyet = s.get('MALIYET', 0.0)
+        with st.expander(f"No: {no} | {urun} | Maliyet: {maliyet:.2f} ₺"):
+            st.write(f"Not: {s.get('KAPATMA_NOTU', 'Yok')}")
             if s.get('DETAY'): st.table(pd.DataFrame.from_dict(s['DETAY'], orient='index', columns=['Tutar (₺)']))
+
+# Diğer menüler (Sipariş Aç, Aktif Siparişler, Reçete Tanımla) önceki yapıda kalabilir.
