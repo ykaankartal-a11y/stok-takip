@@ -60,7 +60,7 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                     if mad == "İŞÇİLİK":
                         tutar = info["MİKTAR"] * miktar
                         toplam_maliyet += tutar
-                        anlik_detay["İŞÇİLİK"] = tutar
+                        anlik_detay["İŞÇİLİK"] = anlik_detay.get("İŞÇİLİK", 0) + tutar
                     else:
                         stok_fiyat = st.session_state.data["DEPO"].get(mad, {}).get("FİYAT", 0)
                         tutar = info["MİKTAR"] * miktar * stok_fiyat
@@ -68,18 +68,43 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                             hata = True; st.error(f"Eksik: {mad}")
                         else:
                             toplam_maliyet += tutar
-                            anlik_detay[mad] = tutar
+                            anlik_detay[mad] = anlik_detay.get(mad, 0) + tutar
                             st.session_state.data["DEPO"][mad]["MİKTAR"] -= (info["MİKTAR"] * miktar)
                 if not hata:
                     s["ÜRETİLEN"] = s.get("ÜRETİLEN", 0) + miktar
                     s["MALIYET"] = s.get("MALIYET", 0) + toplam_maliyet
-                    # Detayları birleştir
                     for k, v in anlik_detay.items(): s["DETAY"][k] = s["DETAY"].get(k, 0) + v
                     verileri_kaydet(st.session_state.data); st.rerun()
             if st.button("✅ KAPAT VE ARŞİVLE", key=f"k_{i}"):
                 s["KAPATMA_NOTU"] = st.text_input("Not", key=f"not_{i}")
                 st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                 verileri_kaydet(st.session_state.data); st.rerun()
+
+elif menu == "📊 ARŞİV":
+    st.header("📊 ARŞİV - DETAYLI MALİYET")
+    arama = st.text_input("🔍 ARA (Müşteri/Ürün)").upper()
+    arsiv = [s for s in st.session_state.data.get("ARSIV", []) if arama in str(s.get('MÜŞTERİ', '')).upper() or arama in str(s.get('ÜRÜN', '')).upper()]
+    
+    # Sayfalama Mantığı
+    toplam_sayfa = (len(arsiv) - 1) // SAYFA_BASI + 1
+    c1, c2, c3 = st.columns([1, 4, 1])
+    if c1.button("⬅️") and st.session_state.page > 0: st.session_state.page -= 1; st.rerun()
+    c2.write(f"Sayfa {st.session_state.page + 1} / {toplam_sayfa}")
+    if c3.button("➡️") and st.session_state.page < toplam_sayfa - 1: st.session_state.page += 1; st.rerun()
+    
+    for s in arsiv[st.session_state.page * SAYFA_BASI : (st.session_state.page + 1) * SAYFA_BASI]:
+        with st.expander(f"No: {s.get('NO')} | {s.get('MÜŞTERİ')} | {s.get('ÜRÜN')}"):
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Satış", f"{s.get('FİYAT', 0)} ₺")
+            c2.metric("Maliyet", f"{s.get('MALIYET', 0):.2f} ₺")
+            c3.metric("Kâr", f"{s.get('FİYAT', 0) - s.get('MALIYET', 0):.2f} ₺")
+            
+            detay = s.get('DETAY', {})
+            if detay:
+                st.write("**Maliyet Kırılımı:**")
+                st.table(pd.DataFrame.from_dict(detay, orient='index', columns=['Tutar (₺)']))
+            else:
+                st.warning("Bu siparişte detay verisi henüz oluşmamış (eski kayıt olabilir).")
 
 elif menu == "⚙️ REÇETE TANIMLA":
     urun = st.text_input("ÜRÜN ADI").upper()
@@ -92,17 +117,9 @@ elif menu == "⚙️ REÇETE TANIMLA":
             st.session_state.data["RECETELER"][urun] = {i["Hammadde"]: {"MİKTAR": i["Miktar"]} for i in st.session_state.temp_liste}
             verileri_kaydet(st.session_state.data); st.session_state.temp_liste = []; st.rerun()
 
-elif menu == "📊 ARŞİV":
-    st.header("📊 ARŞİV - MALİYET ANALİZİ")
-    arama = st.text_input("🔍 ARA (Müşteri/Ürün)").upper()
-    arsiv = [s for s in st.session_state.data.get("ARSIV", []) if arama in str(s.get('MÜŞTERİ', '')).upper() or arama in str(s.get('ÜRÜN', '')).upper()]
-    
-    for s in arsiv:
-        with st.expander(f"No: {s.get('NO')} | {s.get('MÜŞTERİ')} | {s.get('ÜRÜN')}"):
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Satış", f"{s.get('FİYAT', 0)} ₺")
-            c2.metric("Maliyet", f"{s.get('MALIYET', 0):.2f} ₺")
-            c3.metric("Kâr", f"{s.get('FİYAT', 0) - s.get('MALIYET', 0):.2f} ₺")
-            st.write("---")
-            st.write("**Maliyet Kırılımı (Hammadde & İşçilik):**")
-            st.table(pd.DataFrame.from_dict(s.get('DETAY', {}), orient='index', columns=['Tutar (₺)']))
+elif menu == "📦 DEPO":
+    c1, c2, c3, c4 = st.columns(4)
+    isim, miktar = c1.text_input("MALZEME").upper(), c2.number_input("MİKTAR", format="%.3f")
+    fiyat = c4.number_input("BİRİM FİYAT", format="%.2f")
+    if st.button("KAYDET"): st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "FİYAT": fiyat}; verileri_kaydet(st.session_state.data); st.rerun()
+    if st.session_state.data["DEPO"]: st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
