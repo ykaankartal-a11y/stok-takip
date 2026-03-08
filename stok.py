@@ -29,8 +29,7 @@ if 'page' not in st.session_state: st.session_state.page = 0
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "⚙️ REÇETE TANIMLA", "📋 MEVCUT REÇETELER", "📦 DEPO", "📊 ARŞİV"])
 
-# --- MODÜLLER ---
-
+# --- 1. SİPARİŞ AÇ ---
 if menu == "🛒 SİPARİŞ AÇ":
     st.header("🛒 SİPARİŞ OLUŞTUR")
     c1, c2 = st.columns(2)
@@ -46,6 +45,7 @@ if menu == "🛒 SİPARİŞ AÇ":
         st.session_state.data["SIPARISLER"].append({"NO": st.session_state.data["SIPARIS_SAYAC"], "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "FİYAT": fiyat, "TERMİN": str(termin), "ÜRETİLEN": 0, "MALIYET": 0.0, "DETAY": {}})
         verileri_kaydet(st.session_state.data); st.rerun()
 
+# --- 2. AKTİF SİPARİŞLER ---
 elif menu == "📋 AKTİF SİPARİŞLER":
     st.header("📋 KADEMELİ ÜRETİM")
     if not st.session_state.data["SIPARISLER"]: st.info("Aktif sipariş yok.")
@@ -80,6 +80,7 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                 st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                 verileri_kaydet(st.session_state.data); st.rerun()
 
+# --- 3. REÇETE ---
 elif menu == "⚙️ REÇETE TANIMLA":
     urun = st.text_input("ÜRÜN ADI").upper()
     c1, c2, c3 = st.columns(3)
@@ -100,6 +101,7 @@ elif menu == "📋 MEVCUT REÇETELER":
         st.table(df)
         if st.button("❌ SİL"): del st.session_state.data["RECETELER"][secilen]; verileri_kaydet(st.session_state.data); st.rerun()
 
+# --- 4. DEPO ---
 elif menu == "📦 DEPO":
     c1, c2, c3, c4 = st.columns(4)
     isim, miktar = c1.text_input("MALZEME").upper(), c2.number_input("MİKTAR", format="%.3f")
@@ -107,6 +109,7 @@ elif menu == "📦 DEPO":
     if st.button("KAYDET"): st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim, "FİYAT": fiyat}; verileri_kaydet(st.session_state.data); st.rerun()
     if st.session_state.data["DEPO"]: st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
 
+# --- 5. ARŞİV ---
 elif menu == "📊 ARŞİV":
     st.header("📊 ARŞİV")
     arama = st.text_input("🔍 ARA").upper()
@@ -124,4 +127,6 @@ elif menu == "📊 ARŞİV":
             c1.metric("Satış", f"{s.get('FİYAT', 0)} ₺")
             c2.metric("Maliyet", f"{s.get('MALIYET', 0):.2f} ₺")
             c3.metric("Kâr", f"{s.get('FİYAT', 0) - s.get('MALIYET', 0):.2f} ₺")
-            if s.get('DETAY'): st.table(pd.DataFrame.from_dict(s['DETAY'], orient='index', columns=['Tutar (₺)']))
+            if s.get('DETAY'):
+                st.write("**Maliyet Kırılımı:**")
+                st.table(pd.DataFrame.from_dict(s['DETAY'], orient='index', columns=['Tutar (₺)']))
