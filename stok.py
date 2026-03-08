@@ -2,6 +2,7 @@ import streamlit as st
 import json
 import os
 import pandas as pd
+import math
 
 # --- AYARLAR ---
 VERI_DOSYASI = "stok_verileri.json"
@@ -20,6 +21,9 @@ def verileri_kaydet(veri):
     with open(VERI_DOSYASI, "w", encoding="utf-8") as f: json.dump(veri, f, ensure_ascii=False, indent=4)
 
 if 'data' not in st.session_state: st.session_state.data = verileri_yukle()
+if 'edit_malzeme' not in st.session_state: st.session_state.edit_malzeme = None
+if 'page_depo' not in st.session_state: st.session_state.page_depo = 0
+if 'page_arsiv' not in st.session_state: st.session_state.page_arsiv = 0
 
 st.set_page_config(page_title="ALFA TECH | ERP", layout="wide")
 menu = st.sidebar.radio("MENÜ", ["🛒 SİPARİŞ AÇ", "📋 AKTİF SİPARİŞLER", "⚙️ REÇETE TANIMLA", "📋 MEVCUT REÇETELER", "📦 DEPO", "📊 ARŞİV"])
@@ -44,7 +48,6 @@ elif menu == "📋 AKTİF SİPARİŞLER":
             miktar = st.number_input("Üretim Miktarı", 0, key=f"u_{i}")
             if st.button("🚀 ÜRETİMİ KAYDET", key=f"b_{i}"):
                 s["ÜRETİLEN"] = s.get("ÜRETİLEN", 0) + miktar
-                # Maliyet Hesabı
                 recete = st.session_state.data["RECETELER"].get(s['ÜRÜN'], {})
                 for mat, info in recete.items():
                     s["DETAY"][mat] = s.get("DETAY", {}).get(mat, 0) + (miktar * info.get("MİKTAR", 0) * info.get("MALİYET", 0))
@@ -56,38 +59,55 @@ elif menu == "📋 AKTİF SİPARİŞLER":
 # --- 3. REÇETE TANIMLA ---
 elif menu == "⚙️ REÇETE TANIMLA":
     urun = st.text_input("ÜRÜN ADI").upper()
-    col1, col2, col3, col4 = st.columns(4)
-    h_ad = col1.text_input("Malzeme Adı").upper()
-    h_mik = col2.number_input("Miktar", 0.0, format="%.4f")
-    h_bir = col3.selectbox("Birim", BIRIM_LISTESI)
-    h_fiy = col4.number_input("Birim Maliyet", 0.0, format="%.2f")
+    c1, c2, c3, c4 = st.columns(4)
+    h_ad = c1.text_input("Malzeme Adı").upper()
+    h_mik = c2.number_input("Miktar", 0.0)
+    h_bir = c3.selectbox("Birim", BIRIM_LISTESI)
+    h_fiy = c4.number_input("Birim Maliyet", 0.0)
     if st.button("➕ EKLE"):
         if urun not in st.session_state.data["RECETELER"]: st.session_state.data["RECETELER"][urun] = {}
         st.session_state.data["RECETELER"][urun][h_ad] = {"MİKTAR": h_mik, "BİRİM": h_bir, "MALİYET": h_fiy}
         verileri_kaydet(st.session_state.data); st.rerun()
+    if st.button("➕ İŞÇİLİK EKLE"):
+        if urun not in st.session_state.data["RECETELER"]: st.session_state.data["RECETELER"][urun] = {}
+        st.session_state.data["RECETELER"][urun]["İŞÇİLİK"] = {"MİKTAR": 1, "BİRİM": "İŞÇİLİK(TL)", "MALİYET": 0}
+        verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 4. MEVCUT REÇETELER (İŞÇİLİK EKLEMEK DAHİL) ---
+# --- 4. MEVCUT REÇETELER ---
 elif menu == "📋 MEVCUT REÇETELER":
-    secilen = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
+    secilen = st.selectbox("ÜRÜN SEÇİN", [""] + list(st.session_state.data["RECETELER"].keys()))
     if secilen:
-        # İŞÇİLİK EKLEME BUTONU
-        iscilik_fiyat = st.number_input("Eklenecek İşçilik Ücreti (₺)", 0.0)
-        if st.button("➕ İŞÇİLİK EKLE"):
-            st.session_state.data["RECETELER"][secilen]["İŞÇİLİK"] = {"MİKTAR": 1, "BİRİM": "İŞÇİLİK(TL)", "MALİYET": iscilik_fiyat}
-            verileri_kaydet(st.session_state.data); st.rerun()
-            
+        st.write("---")
         for mat, info in list(st.session_state.data["RECETELER"][secilen].items()):
             cols = st.columns([2, 1, 1, 1, 1])
             cols[0].write(f"**{mat}**")
             m = cols[1].number_input("Mik", value=float(info['MİKTAR']), key=f"m_{mat}")
             f = cols[2].number_input("Fiyat", value=float(info.get('MALİYET', 0)), key=f"f_{mat}")
-            if cols[4].button("Kaydet", key=f"u_{mat}"):
-                st.session_state.data["RECETELER"][secilen][mat] = {"MİKTAR": m, "MALİYET": f, "BİRİM": info['BİRİM']}
-                verileri_kaydet(st.session_state.data); st.rerun()
+            if cols[4].button("💾 Kaydet", key=f"u_{mat}"):
+                st.session_state.data["RECETELER"][secilen][mat] = {"MİKTAR": m, "MALİYET": f, "BİRİM": info['BİRİM']}; verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 5. DEPO & 6. ARŞİV (Değişmedi) ---
+# --- 5. DEPO (SAYFALAMALI) ---
 elif menu == "📦 DEPO":
-    for k, v in st.session_state.data["DEPO"].items(): st.write(f"**{k}**: {v.get('MİKTAR')} {v.get('BİRİM')}")
+    st.header("📦 DEPO YÖNETİMİ")
+    c1, c2, c3, c4 = st.columns(4)
+    isim = c1.text_input("MALZEME", value=st.session_state.edit_malzeme or "")
+    mik = c2.number_input("MİKTAR", value=float(st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("MİKTAR", 0)), format="%.3f")
+    bir = c3.selectbox("BİRİM", BIRIM_LISTESI, index=BIRIM_LISTESI.index(st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("BİRİM", "ADET")) if st.session_state.edit_malzeme else 0)
+    if st.button("💾 KAYDET"): st.session_state.data["DEPO"][isim.upper()] = {"MİKTAR": mik, "BİRİM": bir}; verileri_kaydet(st.session_state.data); st.session_state.edit_malzeme=None; st.rerun()
+    
+    arama = st.text_input("🔍 ARA").upper()
+    filt = {k:v for k,v in st.session_state.data["DEPO"].items() if arama in k}
+    for k, v in list(filt.items())[st.session_state.page_depo*SAYFA_BASI : (st.session_state.page_depo+1)*SAYFA_BASI]:
+        col1, col2 = st.columns([4, 1])
+        col1.write(f"**{k}**: {v.get('MİKTAR', 0)} {v.get('BİRİM', '-')}")
+        if col2.button("✏️ Düzenle", key=f"e_{k}"): st.session_state.edit_malzeme = k; st.rerun()
+
+# --- 6. ARŞİV (DETAYLI) ---
 elif menu == "📊 ARŞİV":
-    for s in st.session_state.data.get("ARSIV", []):
-        st.write(f"No: {s.get('NO')} | Maliyet: {sum(s.get('DETAY', {}).values()):.2f} ₺")
+    st.header("📊 ARŞİV")
+    arama = st.text_input("🔍 Ara").upper()
+    arsiv = [s for s in st.session_state.data.get("ARSIV", []) if arama in str(s.get('MÜŞTERİ', '')).upper()]
+    for s in arsiv[st.session_state.page_arsiv*SAYFA_BASI : (st.session_state.page_arsiv+1)*SAYFA_BASI]:
+        with st.expander(f"No: {s.get('NO')} | {s.get('MÜŞTERİ')}"):
+            st.metric("Toplam Maliyet", f"{sum(s.get('DETAY', {}).values()):.2f} ₺")
+            st.table(pd.DataFrame.from_dict(s.get('DETAY', {}), orient='index', columns=['Tutar']))
