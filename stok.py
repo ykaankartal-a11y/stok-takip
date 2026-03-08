@@ -2,7 +2,6 @@ import streamlit as st
 import json
 import os
 import pandas as pd
-from datetime import datetime
 
 # --- AYARLAR ---
 VERI_DOSYASI = "stok_verileri.json"
@@ -44,8 +43,7 @@ if menu == "🛒 SİPARİŞ AÇ":
             st.session_state.data["SIPARIS_SAYAC"] += 1
             st.session_state.data["SIPARISLER"].append({"NO": st.session_state.data["SIPARIS_SAYAC"], "MÜŞTERİ": mus, "ÜRÜN": uru, "ADET": adet, "FİYAT": fiyat, "TERMİN": str(termin), "ÜRETİLEN": 0, "MALIYET": 0.0, "DETAY": {}})
             verileri_kaydet(st.session_state.data)
-            st.success(f"Sipariş {st.session_state.data['SIPARIS_SAYAC']} başarıyla oluşturuldu!"); st.rerun()
-        else: st.error("Lütfen müşteri ve ürün seçin.")
+            st.success("Sipariş başarıyla oluşturuldu!"); st.rerun()
 
 # --- 2. AKTİF SİPARİŞLER ---
 elif menu == "📋 AKTİF SİPARİŞLER":
@@ -77,12 +75,11 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                         s["ÜRETİLEN"] += miktar; s["MALIYET"] += toplam_maliyet
                         for k, v in anlik_detay.items(): s["DETAY"][k] = s.get("DETAY", {}).get(k, 0) + v
                         verileri_kaydet(st.session_state.data); st.rerun()
-            
             not_val = st.text_input("Kapatma Notu", key=f"not_{i}")
             if st.button("✅ KAPAT VE ARŞİVLE", key=f"k_{i}"):
                 s["KAPATMA_NOTU"] = not_val
                 st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
-                verileri_kaydet(st.session_state.data); st.success("Sipariş arşive taşındı."); st.rerun()
+                verileri_kaydet(st.session_state.data); st.success("Arşivlendi."); st.rerun()
 
 # --- 3. REÇETE ---
 elif menu == "⚙️ REÇETE TANIMLA":
@@ -100,16 +97,20 @@ elif menu == "⚙️ REÇETE TANIMLA":
             st.session_state.data["RECETELER"][urun] = {i["H"]: {"MİKTAR": i["M"], "BİRİM": i["B"]} for i in st.session_state.temp_liste}
             verileri_kaydet(st.session_state.data); st.session_state.temp_liste = []; st.success("Reçete kaydedildi!"); st.rerun()
 
+elif menu == "📋 MEVCUT REÇETELER":
+    secilen = st.selectbox("ÜRÜN", [""] + list(st.session_state.data["RECETELER"].keys()))
+    if secilen:
+        st.table(pd.DataFrame(st.session_state.data["RECETELER"][secilen]).T)
+        if st.button("❌ SİL"): del st.session_state.data["RECETELER"][secilen]; verileri_kaydet(st.session_state.data); st.rerun()
+
 # --- 4. DEPO ---
 elif menu == "📦 DEPO":
     c1, c2, c3, c4 = st.columns(4)
-    isim = c1.text_input("MALZEME").upper()
-    miktar = c2.number_input("MİKTAR", format="%.3f")
-    birim = c3.selectbox("BİRİM", BIRIM_LISTESI)
-    fiyat = c4.number_input("FİYAT", format="%.2f")
+    isim, miktar = c1.text_input("MALZEME").upper(), c2.number_input("MİKTAR", format="%.3f")
+    birim, fiyat = c3.selectbox("BİRİM", BIRIM_LISTESI), c4.number_input("FİYAT", format="%.2f")
     if st.button("KAYDET"):
         st.session_state.data["DEPO"][isim] = {"MİKTAR": miktar, "BİRİM": birim, "FİYAT": fiyat}
-        verileri_kaydet(st.session_state.data); st.success(f"{isim} depoya eklendi."); st.rerun()
+        verileri_kaydet(st.session_state.data); st.success("Kaydedildi."); st.rerun()
     if st.session_state.data["DEPO"]: st.table(pd.DataFrame(st.session_state.data["DEPO"]).T)
 
 # --- 5. ARŞİV ---
