@@ -5,7 +5,7 @@ import pandas as pd
 
 # --- AYARLAR ---
 VERI_DOSYASI = "stok_verileri.json"
-BIRIM_LISTESI = ["KG", "GR", "ADET", "LİTRE", "METRE", "PAKET"]
+BIRIM_LISTESI = ["KG", "GR", "ADET", "LİTRE", "METRE", "PAKET", "İŞÇİLİK(TL)"]
 SAYFA_BASI = 10
 
 def verileri_yukle():
@@ -57,7 +57,7 @@ elif menu == "📋 AKTİF SİPARİŞLER":
                 st.session_state.data["ARSIV"].append(st.session_state.data["SIPARISLER"].pop(i))
                 verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 3. REÇETE & 4. MEVCUT REÇETELER ---
+# --- 3. REÇETE TANIMLA & 4. MEVCUT REÇETELER ---
 elif menu == "⚙️ REÇETE TANIMLA":
     urun = st.text_input("ÜRÜN ADI").upper()
     c1, c2, c3, c4 = st.columns(4)
@@ -80,14 +80,14 @@ elif menu == "📋 MEVCUT REÇETELER":
             f = cols[2].number_input("Fiyat", value=float(info.get('MALİYET', 0)), key=f"f_{mat}")
             if cols[4].button("💾 Kaydet", key=f"u_{mat}"): st.session_state.data["RECETELER"][secilen][mat] = {"MİKTAR": m, "BİRİM": info['BİRİM'], "MALİYET": f}; verileri_kaydet(st.session_state.data); st.rerun()
 
-# --- 5. DEPO (Aramalı ve Düzenlemeli) ---
+# --- 5. DEPO (DÜZENLEME VE BİRİM SEÇİMİ EKLENDİ) ---
 elif menu == "📦 DEPO":
     c1, c2, c3, c4 = st.columns(4)
     isim = c1.text_input("MALZEME", value=st.session_state.edit_malzeme or "")
     mik = c2.number_input("MİKTAR", value=float(st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("MİKTAR", 0)))
-    if c4.button("💾 KAYDET"): st.session_state.data["DEPO"][isim.upper()] = {"MİKTAR": mik, "BİRİM": "ADET"}; verileri_kaydet(st.session_state.data); st.session_state.edit_malzeme=None; st.rerun()
+    bir = c3.selectbox("BİRİM", BIRIM_LISTESI, index=BIRIM_LISTESI.index(st.session_state.data["DEPO"].get(st.session_state.edit_malzeme, {}).get("BİRİM", "ADET")) if st.session_state.edit_malzeme else 0)
+    if c4.button("💾 KAYDET"): st.session_state.data["DEPO"][isim.upper()] = {"MİKTAR": mik, "BİRİM": bir}; verileri_kaydet(st.session_state.data); st.session_state.edit_malzeme=None; st.rerun()
     
-    st.write("---")
     arama = st.text_input("🔍 MALZEME ARA").upper()
     filt = {k:v for k,v in st.session_state.data["DEPO"].items() if arama in k}
     for k, v in list(filt.items())[st.session_state.page_depo*SAYFA_BASI : (st.session_state.page_depo+1)*SAYFA_BASI]:
@@ -98,7 +98,7 @@ elif menu == "📦 DEPO":
     if c1.button("⬅️ Önceki"): st.session_state.page_depo = max(0, st.session_state.page_depo-1); st.rerun()
     if c2.button("Sonraki ➡️"): st.session_state.page_depo += 1; st.rerun()
 
-# --- 6. ARŞİV (Aramalı ve Sayfalamalı) ---
+# --- 6. ARŞİV ---
 elif menu == "📊 ARŞİV":
     arama = st.text_input("🔍 ARA (Müşteri/No)").upper()
     arsiv = [s for s in st.session_state.data.get("ARSIV", []) if arama in str(s.get('MÜŞTERİ', '')).upper() or arama in str(s.get('NO', ''))]
